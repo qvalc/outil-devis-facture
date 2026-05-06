@@ -1,0 +1,22 @@
+{
+  "app": "BastCompta",
+  "version": 8,
+  "backupType": "complete-indexeddb-primary-css-separated-local-fallback-drive-pdf-crm-suivi-client-faithful",
+  "contains": [
+    "application",
+    "localStorage",
+    "googleDriveAppData",
+    "crm",
+    "clients",
+    "devis",
+    "factures",
+    "rappels",
+    "pdf-fideles",
+    "comptabilite",
+    "suivi-client",
+    "manifest",
+    "css-separated",
+    "external-css"
+  ],
+  "note": "Cette version conserve IndexedDB comme stockage principal avec localStorage en secours, et sépare les styles CSS des fichiers HTML dans un dossier css/ afin de faciliter la maintenance sans modifier la logique métier."
+}
