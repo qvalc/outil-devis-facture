@@ -8,7 +8,7 @@
   'use strict';
 
   const DB_NAME = 'BastComptaDB';
-  const DB_VERSION = 2;
+  const DB_VERSION = 1;
   const MIRROR_STORE = 'localStorageMirror';
   const META_STORE = 'meta';
   const RESTORE_FLAG = 'bastcompta_indexeddb_restore_done';
@@ -176,64 +176,6 @@
     }
   }
 
-
-  async function getPrimary(key, fallback = null) {
-    try {
-      const entry = await idbGet(MIRROR_STORE, String(key));
-      if (entry && typeof entry.value === 'string') {
-        try {
-          if (window.localStorage.getItem(key) !== entry.value) {
-            window.localStorage.setItem(key, entry.value);
-          }
-        } catch (error) {
-          console.warn('[BastStorage] Recopie IndexedDB → localStorage impossible :', error);
-        }
-        return entry.value;
-      }
-    } catch (error) {
-      console.warn('[BastStorage] Lecture prioritaire IndexedDB impossible, fallback localStorage :', error);
-    }
-
-    const localValue = window.localStorage.getItem(key);
-    if (localValue !== null) {
-      await mirrorSetItem(key, localValue);
-      return localValue;
-    }
-
-    return fallback;
-  }
-
-  async function setPrimary(key, value) {
-    const stringValue = String(value);
-    await idbPut(MIRROR_STORE, {
-      key: String(key),
-      value: stringValue,
-      updatedAt: new Date().toISOString(),
-      source: 'indexedDB-primary'
-    });
-    try {
-      window.localStorage.setItem(key, stringValue);
-    } catch (error) {
-      console.warn('[BastStorage] Copie de secours localStorage impossible :', error);
-    }
-    return true;
-  }
-
-  async function getJsonPrimary(key, fallback = null) {
-    const raw = await getPrimary(key, null);
-    if (raw === null) return fallback;
-    try {
-      return JSON.parse(raw);
-    } catch (error) {
-      console.warn('[BastStorage] JSON prioritaire IndexedDB invalide pour', key, error);
-      return fallback;
-    }
-  }
-
-  async function setJsonPrimary(key, value, pretty = false) {
-    return setPrimary(key, JSON.stringify(value, null, pretty ? 2 : 0));
-  }
-
   async function get(key, fallback = null) {
     const localValue = window.localStorage.getItem(key);
     if (localValue !== null) return localValue;
@@ -272,12 +214,8 @@
     importantKeys: IMPORTANT_KEYS.slice(),
     get,
     set,
-    getPrimary,
-    setPrimary,
     getJson,
     setJson,
-    getJsonPrimary,
-    setJsonPrimary,
     remove: async key => {
       window.localStorage.removeItem(key);
       await mirrorRemoveItem(key);
@@ -289,8 +227,7 @@
   };
 
   installLocalStorageMirror();
-  window.BastStorage.ready = restoreMissingLocalStorageFromIndexedDB().then(mirrorExistingLocalStorage);
-  window.BastStorage.primaryMode = true;
+  restoreMissingLocalStorageFromIndexedDB().then(mirrorExistingLocalStorage);
 
   window.addEventListener('beforeunload', () => {
     // Les écritures sont déjà lancées à chaque setItem ; ce hook sert surtout de point d'extension.
