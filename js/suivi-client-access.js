@@ -1,3 +1,5 @@
+// BastCompta - contrôle d’accès Suivi client
+
 (function () {
       const PORTAL_URL = 'index.html';
       const ACCESS_KEY = 'bastcompta_portal_access';

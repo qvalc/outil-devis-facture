@@ -1,3 +1,5 @@
+// BastCompta - module Suivi client
+
 const STORAGE_KEY = 'bastcompta-chantiers-v1';
     const DRIVE_SYNC_FILE_NAME = 'bastcompta-chantiers-sync.json';
     const DEVIS_FACTURE_STORAGE_KEY = 'devis-facture-style-vrai-document';
@@ -159,7 +161,6 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
         timeline: Array.isArray(project.timeline) ? project.timeline : []
       };
     }
-
 
 
     function readFullCrmDataFromLocalStorage() {
@@ -1138,7 +1139,6 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
     }
 
 
-
     /* ==========================================================
        EXPORT PDF METIER - Devis / Facture / Rappel
        Génère un vrai document A4 avec le rendu comptable Bast Aménagement,
@@ -1775,7 +1775,6 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
       await saveData();
       notify('Suivi client supprimé.');
     }
-
 
 
     function escapeAttr(value) {

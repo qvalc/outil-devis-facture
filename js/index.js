@@ -1,3 +1,5 @@
+// Portail BastCompta - script principal
+
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
     import {
       getAuth,
@@ -459,7 +461,6 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
     }
 
     window.openInvoicePrintPreviewFromAccounting = openInvoicePrintPreviewFromAccounting;
-
 
 
     const BAST_BACKUP_VERSION = 5;

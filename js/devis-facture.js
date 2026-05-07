@@ -1,3 +1,5 @@
+// BastCompta - module Devis & Facture
+
 const STORAGE_KEY = 'devis-facture-style-vrai-document';
     const DRIVE_SYNC_FILE_NAME = 'bastcompta-crm-sync.json';
 
@@ -1476,7 +1478,6 @@ Communication : ${data.communication.formatted || '+++...+++'}`;
       if (shouldRender) render();
       return result;
     }
-
 
 
     function getSyncDriveFileName() {

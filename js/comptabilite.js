@@ -1,3 +1,5 @@
+// BastCompta - module Comptabilité
+
 const STORAGE_KEY = 'comptabilite-local-v1';
     const DRIVE_SYNC_FILE_NAME = 'bastcompta-comptabilite-sync.json';
 
