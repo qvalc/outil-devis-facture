@@ -980,24 +980,33 @@ body.backup-pdf-capture .sheet {
     }
 }
 
-.settings-grid .stack>div {
-    display: grid;
-    grid-template-columns: 220px 1fr;
+.settings-grid {
     align-items: start;
-    gap: 14px;
 }
 
-.settings-grid .stack>div>label {
-    padding-top: 10px;
-    font-weight: 600;
-    color: #475569;
+.settings-grid .stack {
+    align-content: start;
 }
 
-.settings-grid textarea {
-    min-height: 120px;
+.settings-grid label {
+    margin-bottom: 4px;
 }
 
 .settings-grid input,
 .settings-grid textarea {
-    border-radius: 10px;
+    width: 100%;
+    max-width: 100%;
+}
+
+.settings-grid textarea {
+    min-height: 80px;
+    max-height: 220px;
+    overflow: auto;
+    resize: vertical;
+}
+
+.settings-grid textarea[id*="conditions"],
+.settings-grid textarea[name*="conditions"] {
+    min-height: 320px;
+    max-height: 520px;
 }
