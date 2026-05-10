@@ -124,7 +124,23 @@
     };
   }
 
+  function isCreditNoteSalesRow(row) {
+    return String(row?.documentType || '').toLowerCase() === 'credit_note'
+      || String(row?.documentStatus || '').toLowerCase() === 'credit_note'
+      || /note\s+de\s+cr[eé]dit/i.test(String(row?.description || ''));
+  }
+
+  function salesRowTvac(row) {
+    const value = toNumber(row?.tvac);
+    return isCreditNoteSalesRow(row) ? -Math.abs(value) : value;
+  }
+
   function salesRowNet(row) {
+    // Le journal des ventes de Comptabilité stocke les ventes en TVAC.
+    // Il faut donc reprendre exactement la même logique que comptabilite.js : HTVA = TVAC / (1 + TVA).
+    if ('tvac' in row) {
+      return round2(salesRowTvac(row) / (1 + toNumber(row.rate || row.vatRate || 21) / 100));
+    }
     if ('htva' in row) return toNumber(row.htva);
     const qty = toNumber(row.quantity || row.qty || 1);
     const price = toNumber(row.unitPrice || row.price || 0);
@@ -133,6 +149,7 @@
   }
 
   function salesRowVat(row) {
+    if ('tvac' in row) return round2(salesRowTvac(row) - salesRowNet(row));
     if ('vat' in row) return toNumber(row.vat);
     return round2(salesRowNet(row) * toNumber(row.rate || row.vatRate || 21) / 100);
   }
