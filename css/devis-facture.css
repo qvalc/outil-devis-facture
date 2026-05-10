@@ -56,7 +56,8 @@ body {
     align-items: center;
 }
 
-button, .file-label {
+button,
+.file-label {
     border: 1px solid var(--line);
     background: #fff;
     color: var(--ink);
@@ -167,7 +168,9 @@ button.danger {
     align-items: center;
 }
 
-.toolbar-group.secondary button, .toolbar-group.primary button, .toolbar-group.more button {
+.toolbar-group.secondary button,
+.toolbar-group.primary button,
+.toolbar-group.more button {
     min-height: 42px;
 }
 
@@ -337,7 +340,8 @@ table {
     border-collapse: collapse;
 }
 
-.meta-table th, .meta-table td {
+.meta-table th,
+.meta-table td {
     border-right: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
     padding: 8px 9px;
@@ -345,7 +349,8 @@ table {
     font-size: 12px;
 }
 
-.meta-table th:last-child, .meta-table td:last-child {
+.meta-table th:last-child,
+.meta-table td:last-child {
     border-right: none;
 }
 
@@ -375,7 +380,8 @@ table {
     width: 100%;
 }
 
-.doc-table th, .doc-table td {
+.doc-table th,
+.doc-table td {
     border-right: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
     padding: 7px 7px;
@@ -383,7 +389,8 @@ table {
     vertical-align: middle;
 }
 
-.doc-table th:last-child, .doc-table td:last-child {
+.doc-table th:last-child,
+.doc-table td:last-child {
     border-right: none;
 }
 
@@ -397,50 +404,70 @@ table {
     font-weight: 700;
 }
 
-.doc-table td:nth-child(2), .doc-table td:nth-child(3), .doc-table td:nth-child(4), .doc-table td:nth-child(5), .doc-table td:nth-child(6), .doc-table td:nth-child(7), .doc-table th:nth-child(2), .doc-table th:nth-child(3), .doc-table th:nth-child(4), .doc-table th:nth-child(5), .doc-table th:nth-child(6), .doc-table th:nth-child(7) {
+.doc-table td:nth-child(2),
+.doc-table td:nth-child(3),
+.doc-table td:nth-child(4),
+.doc-table td:nth-child(5),
+.doc-table td:nth-child(6),
+.doc-table td:nth-child(7),
+.doc-table th:nth-child(2),
+.doc-table th:nth-child(3),
+.doc-table th:nth-child(4),
+.doc-table th:nth-child(5),
+.doc-table th:nth-child(6),
+.doc-table th:nth-child(7) {
     text-align: center;
 }
 
-.doc-table th:first-child, .doc-table td:first-child {
+.doc-table th:first-child,
+.doc-table td:first-child {
     width: 44%;
 }
 
-.doc-table th:nth-child(2), .doc-table td:nth-child(2) {
+.doc-table th:nth-child(2),
+.doc-table td:nth-child(2) {
     width: 95px;
     /* Quantité */
 }
 
-.doc-table th:nth-child(3), .doc-table td:nth-child(3) {
+.doc-table th:nth-child(3),
+.doc-table td:nth-child(3) {
     width: 70px;
     /* Unité */
 }
 
-.doc-table th:nth-child(4), .doc-table td:nth-child(4) {
+.doc-table th:nth-child(4),
+.doc-table td:nth-child(4) {
     width: 95px;
     /* Pr. unit. */
 }
 
-.doc-table th:nth-child(5), .doc-table td:nth-child(5) {
+.doc-table th:nth-child(5),
+.doc-table td:nth-child(5) {
     width: 85px;
     /* Remise */
 }
 
-.doc-table th:nth-child(6), .doc-table td:nth-child(6) {
+.doc-table th:nth-child(6),
+.doc-table td:nth-child(6) {
     width: 105px;
     /* Total */
 }
 
-.doc-table th:nth-child(7), .doc-table td:nth-child(7) {
+.doc-table th:nth-child(7),
+.doc-table td:nth-child(7) {
     width: 85px;
     /* TVA */
 }
 
-.doc-table th:last-child, .doc-table td:last-child {
+.doc-table th:last-child,
+.doc-table td:last-child {
     width: 95px;
     /* bouton */
 }
 
-.doc-table td:first-child textarea, .doc-table th:first-child {
+.doc-table td:first-child textarea,
+.doc-table th:first-child {
     width: 100%;
 }
 
@@ -454,12 +481,16 @@ table {
     padding-bottom: 4px;
 }
 
-.doc-table td input, .doc-table td select, .doc-table td textarea {
+.doc-table td input,
+.doc-table td select,
+.doc-table td textarea {
     max-width: 100%;
     box-sizing: border-box;
 }
 
-input, textarea, select {
+input,
+textarea,
+select {
     width: 100%;
     border: 1px solid #d6dbe3;
     background: #fff;
@@ -542,7 +573,8 @@ textarea {
     padding: 22px;
 }
 
-.conditions-screen h3, .conditions-print-page h3 {
+.conditions-screen h3,
+.conditions-print-page h3 {
     margin: 0 0 14px;
     font-size: 24px;
 }
@@ -652,7 +684,8 @@ textarea {
     background: #f8fbff;
 }
 
-.drive-file-item input[type="radio"], .drive-file-item input[type="checkbox"] {
+.drive-file-item input[type="radio"],
+.drive-file-item input[type="checkbox"] {
     width: auto;
     margin: 0;
 }
@@ -725,12 +758,19 @@ textarea {
 }
 
 @media (max-width: 1100px) {
-    .doc-head, .bottom, .comm-grid, .comm-meta, .settings-grid {
+
+    .doc-head,
+    .bottom,
+    .comm-grid,
+    .comm-meta,
+    .settings-grid {
         grid-template-columns: 1fr;
     }
+
     .toolbar {
         align-items: stretch;
     }
+
     .toolbar-actions {
         width: 100%;
         justify-content: flex-start;
@@ -741,9 +781,13 @@ textarea {
     .app {
         padding: 12px;
     }
-    .sheet, .comm-panel, .conditions-screen {
+
+    .sheet,
+    .comm-panel,
+    .conditions-screen {
         padding: 14px;
     }
+
     .doc-title-top {
         font-size: 26px;
     }
@@ -754,7 +798,9 @@ body.backup-pdf-capture .no-print {
     display: none !important;
 }
 
-body.backup-pdf-capture input, body.backup-pdf-capture textarea, body.backup-pdf-capture select {
+body.backup-pdf-capture input,
+body.backup-pdf-capture textarea,
+body.backup-pdf-capture select {
     border: none !important;
     background: transparent !important;
     padding: 0 !important;
@@ -790,7 +836,8 @@ body.backup-pdf-capture .client-box .stack {
     gap: 4px !important;
 }
 
-body.backup-pdf-capture .doc-table .backup-pdf-value, body.backup-pdf-capture .meta-table .backup-pdf-value {
+body.backup-pdf-capture .doc-table .backup-pdf-value,
+body.backup-pdf-capture .meta-table .backup-pdf-value {
     text-align: inherit;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -810,10 +857,12 @@ body.backup-pdf-capture .sheet {
     body {
         background: #fff;
     }
+
     .doc-title-top {
         font-size: 28px !important;
         margin: 0 0 10px !important;
     }
+
     .doc-table td:first-child textarea {
         white-space: pre-wrap !important;
         overflow-wrap: break-word !important;
@@ -822,82 +871,133 @@ body.backup-pdf-capture .sheet {
         min-height: 18px !important;
         line-height: 1.25 !important;
     }
-    .doc-table th, .doc-table td {
+
+    .doc-table th,
+    .doc-table td {
         font-size: 11px !important;
         padding: 7px 7px !important;
     }
-    .topbar, .tabs, .toolbar, .no-print, .conditions-screen {
+
+    .topbar,
+    .tabs,
+    .toolbar,
+    .no-print,
+    .conditions-screen {
         display: none !important;
     }
+
     .app {
         max-width: none;
         padding: 0;
     }
+
     .page {
         display: none !important;
     }
+
     .page.print-include {
         display: block !important;
     }
-    .sheet, .comm-panel, .conditions-print-page {
+
+    .sheet,
+    .comm-panel,
+    .conditions-print-page {
         border: none;
         box-shadow: none;
         padding: 0;
         background: #fff;
     }
+
     .doc-head {
         grid-template-columns: 1fr 1fr !important;
         gap: 18px !important;
         align-items: start !important;
     }
+
     .bottom {
         grid-template-columns: 1fr 280px !important;
         gap: 12px !important;
         align-items: start !important;
     }
+
     .client-box {
         min-height: auto !important;
         padding: 8px !important;
     }
+
     .client-box textarea {
         min-height: 52px !important;
     }
+
     .notes-block {
         min-height: 0 !important;
         height: auto !important;
         padding: 6px 8px !important;
     }
-    .totals, .pay-block {
+
+    .totals,
+    .pay-block {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
     }
+
     .notes-block textarea {
         min-height: 0 !important;
         height: auto !important;
         padding: 0 !important;
         margin: 0 !important;
     }
-    input, textarea, select {
+
+    input,
+    textarea,
+    select {
         border: none;
         padding: 0;
         background: transparent;
     }
+
     .doc-table-wrap {
         overflow: visible;
     }
+
     .doc-table {
         min-width: 0;
     }
+
     .company-logo {
         max-width: 85px;
         max-height: 85px;
     }
+
     .conditions-print-page {
         display: block !important;
         page-break-before: always;
         break-before: page;
     }
+
     .conditions-content {
         font-size: 11px;
     }
+}
+
+.settings-grid .stack>div {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    align-items: start;
+    gap: 14px;
+}
+
+.settings-grid .stack>div>label {
+    padding-top: 10px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.settings-grid textarea {
+    min-height: 120px;
+}
+
+.settings-grid input,
+.settings-grid textarea {
+    border-radius: 10px;
 }
