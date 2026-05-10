@@ -72,26 +72,12 @@ body {
     z-index: 1;
 }
 
-.brand-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    background: #eef4ff;
-    color: var(--primary);
-    border: 1px solid #cfe0ff;
-    border-radius: 999px;
-    padding: 10px 14px;
-    font-size: 13px;
-    font-weight: 700;
-    margin-bottom: 18px;
-}
-
 .brand h1 {
-    margin: 0 0 14px;
-    font-size: 46px;
+    margin: 0 0 16px;
+    font-size: 35px;
     line-height: 1.05;
-    letter-spacing: -0.03em;
-    max-width: 680px;
+    max-width: 900px;
+    letter-spacing: -0.04em;
 }
 
 .brand p {
@@ -108,16 +94,16 @@ body {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
-    margin-top: 28px;
+    margin-top: 30px;
 }
 
 .feature-card {
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.94);
     border: 1px solid var(--line);
     border-radius: 22px;
     padding: 20px;
     box-shadow: var(--shadow-soft);
-    min-height: 170px;
+    min-height: 155px;
 }
 
 .feature-icon {
@@ -165,10 +151,25 @@ body {
     border-radius: 32px;
     box-shadow: var(--shadow);
     padding: 30px;
+    padding-top: 40px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     min-height: 100%;
+}
+
+.auth-logo {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.auth-logo img {
+    width: 320px;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
 }
 
 .auth-head {
