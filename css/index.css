@@ -776,3 +776,14 @@ iframe {
     margin: 4px 0;
     color: var(--text);
 }
+
+.subscription-extra {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 14px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    color: #9a3412;
+    line-height: 1.6;
+    font-size: 14px;
+}
