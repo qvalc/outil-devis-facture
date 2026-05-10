@@ -76,6 +76,11 @@ const devisFrame = document.getElementById('devisFrame');
 const comptaFrame = document.getElementById('comptaFrame');
 const chantierFrame = document.getElementById('chantierFrame');
 const impotsFrame = document.getElementById('impotsFrame');
+const subscriptionModal = document.getElementById('subscriptionModal');
+const subscriptionModalTitle = document.getElementById('subscriptionModalTitle');
+const subscriptionModalText = document.getElementById('subscriptionModalText');
+const subscriptionCommunication = document.getElementById('subscriptionCommunication');
+const closeSubscriptionModalBtn = document.getElementById('closeSubscriptionModalBtn');
 const authTabs = Array.from(document.querySelectorAll('.auth-tab'));
 const mainTabs = Array.from(document.querySelectorAll('.main-tab'));
 
@@ -1495,7 +1500,41 @@ async function checkSubscription(user) {
   }
 
   if (data.subscriptionStatus === 'active' && data.subscriptionActive === true) {
-    return { allowed: true, status: 'active', data };
+
+    const now = new Date();
+
+    const subscriptionEndsAt = new Date(
+      data.subscriptionEndsAt || 0
+    );
+
+    if (
+      Number.isNaN(subscriptionEndsAt.getTime()) ||
+      now > subscriptionEndsAt
+    ) {
+
+      await updateDoc(userRef, {
+        subscriptionStatus: 'expired',
+        subscriptionActive: false,
+        updatedAt: now.toISOString()
+      }).catch(error =>
+        console.warn(
+          'Impossible de mettre à jour le statut abonnement expiré.',
+          error
+        )
+      );
+
+      return {
+        allowed: false,
+        reason: 'subscription_expired',
+        data
+      };
+    }
+
+    return {
+      allowed: true,
+      status: 'active',
+      data
+    };
   }
 
   if (data.subscriptionStatus === 'trial' && data.subscriptionActive === true) {
@@ -1519,16 +1558,70 @@ async function checkSubscription(user) {
 }
 
 function subscriptionMessageFromResult(result) {
+  const email = result?.data?.email || auth.currentUser?.email || '';
+
   if (result?.reason === 'trial_expired') {
-    return 'Votre période d’essai de 14 jours est expirée. Merci de vous abonner pour continuer à utiliser BastCompta.';
+    return `Votre période d’essai gratuite de 14 jours est terminée.
+
+Pour continuer à utiliser BastCompta, merci d’effectuer un virement bancaire :
+
+Compte : BE62 0013 1811 9761
+Communication : bastcompta ${email}
+
+Formules disponibles :
+- Mensuel : 4,99 €
+- Trimestriel : 12,99 €
+- Annuel : 49,99 €
+
+Votre accès sera réactivé après validation du paiement.`;
   }
 
-  if (result?.reason === 'inactive' || result?.reason === 'expired') {
-    return 'Votre abonnement n’est pas actif. Merci de vous abonner pour continuer à utiliser BastCompta.';
+  if (
+    result?.reason === 'subscription_expired' ||
+    result?.reason === 'inactive' ||
+    result?.reason === 'expired'
+  ) {
+    return `Votre abonnement BastCompta est expiré.
+
+Merci d’effectuer un virement bancaire :
+
+Compte : BE62 0013 1811 9761
+Communication : bastcompta ${email}
+
+Formules disponibles :
+- Mensuel : 4,99 €
+- Trimestriel : 12,99 €
+- Annuel : 49,99 €
+
+Votre accès sera réactivé après validation du paiement.`;
   }
 
   return 'Accès BastCompta non autorisé pour ce compte.';
 }
+
+function showSubscriptionModal(result) {
+  const email = result?.data?.email || auth.currentUser?.email || '';
+
+  if (!subscriptionModal) return;
+
+  subscriptionModalTitle.textContent =
+    result?.reason === 'trial_expired'
+      ? 'Votre essai gratuit est terminé'
+      : 'Votre abonnement est expiré';
+
+  subscriptionModalText.textContent =
+    'Pour continuer à utiliser BastCompta, choisissez une formule et effectuez le virement bancaire.';
+
+  subscriptionCommunication.textContent = `bastcompta ${email}`;
+
+  subscriptionModal.classList.add('open');
+  subscriptionModal.setAttribute('aria-hidden', 'false');
+}
+
+closeSubscriptionModalBtn?.addEventListener('click', () => {
+  subscriptionModal?.classList.remove('open');
+  subscriptionModal?.setAttribute('aria-hidden', 'true');
+});
 
 authTabs.forEach(btn => {
   btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab));
@@ -1799,6 +1892,7 @@ onAuthStateChanged(auth, async (user) => {
         portalScreen.classList.add('hidden');
         authScreen.classList.remove('hidden');
         setMessage(subscriptionMessageFromResult(subscription), 'warning');
+        showSubscriptionModal(subscription);
         return;
       }
 

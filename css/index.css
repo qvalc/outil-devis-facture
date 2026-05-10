@@ -187,7 +187,8 @@ body {
     line-height: 1.6;
 }
 
-.auth-tabs, .main-tabs {
+.auth-tabs,
+.main-tabs {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
@@ -205,7 +206,9 @@ body {
     margin-bottom: 10px;
 }
 
-.auth-tab, .main-tab, button {
+.auth-tab,
+.main-tab,
+button {
     border: 1px solid var(--line);
     background: #fff;
     color: var(--text);
@@ -236,7 +239,10 @@ body {
     border-color: #bfd4ff;
 }
 
-button:hover, .main-tab:hover, .auth-tab:hover, .link-btn:hover {
+button:hover,
+.main-tab:hover,
+.auth-tab:hover,
+.link-btn:hover {
     transform: translateY(-1px);
 }
 
@@ -298,7 +304,9 @@ input:focus {
     box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.08);
 }
 
-.hint, .message, .inline-note {
+.hint,
+.message,
+.inline-note {
     font-size: 13px;
     line-height: 1.6;
     color: var(--muted);
@@ -584,6 +592,7 @@ iframe {
     .auth-layout {
         grid-template-columns: 1fr;
     }
+
     .feature-grid {
         grid-template-columns: 1fr;
     }
@@ -593,15 +602,22 @@ iframe {
     .app {
         padding: 14px;
     }
-    .showcase, .auth-card, .workspace, .portal-topbar {
+
+    .showcase,
+    .auth-card,
+    .workspace,
+    .portal-topbar {
         border-radius: 22px;
     }
+
     .brand h1 {
         font-size: 34px;
     }
+
     .auth-head h2 {
         font-size: 26px;
     }
+
     .title-wrap h2 {
         font-size: 24px;
     }
@@ -695,4 +711,68 @@ iframe {
     .backup-actions-panel {
         grid-template-columns: 1fr;
     }
+}
+
+.subscription-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+}
+
+.subscription-modal.open {
+    display: flex;
+}
+
+.subscription-modal-card {
+    width: min(560px, 100%);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 26px;
+    box-shadow: var(--shadow);
+    padding: 28px;
+}
+
+.subscription-modal-card h3 {
+    margin: 0 0 10px;
+    font-size: 26px;
+}
+
+.subscription-modal-card p {
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.subscription-plans {
+    display: grid;
+    gap: 10px;
+    margin: 18px 0;
+}
+
+.subscription-plans div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #f8fafc;
+}
+
+.subscription-payment {
+    padding: 14px;
+    border-radius: 16px;
+    background: var(--primary-soft);
+    border: 1px solid #bfd4ff;
+    margin-bottom: 18px;
+}
+
+.subscription-payment p {
+    margin: 4px 0;
+    color: var(--text);
 }

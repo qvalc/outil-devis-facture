@@ -121,10 +121,12 @@
           </div>
 
           <div class="user-actions">
-            <button id="globalSaveBtn" class="primary" type="button" title="Sauvegarder tous les modules">Sauvegarder</button>
+            <button id="globalSaveBtn" class="primary" type="button"
+              title="Sauvegarder tous les modules">Sauvegarder</button>
             <div id="currentUser" class="user-pill"></div>
             <div id="settingsMenu" class="settings-menu">
-              <button id="settingsMenuBtn" class="settings-icon-btn ghost" type="button" title="Paramètres" aria-label="Paramètres">⚙</button>
+              <button id="settingsMenuBtn" class="settings-icon-btn ghost" type="button" title="Paramètres"
+                aria-label="Paramètres">⚙</button>
               <div class="settings-dropdown" id="settingsDropdown">
                 <button id="fullBackupBtn" type="button">Créer une sauvegarde ZIP</button>
                 <button id="fullRestoreBtn" type="button">Restaurer une sauvegarde ZIP</button>
@@ -178,7 +180,8 @@
       <div class="drive-modal-head">
         <div>
           <h3>Fichiers Drive cachés</h3>
-          <p>Contenu du dossier Google Drive appDataFolder utilisé par BastCompta. Ces fichiers ne sont pas visibles dans l’interface Drive classique.</p>
+          <p>Contenu du dossier Google Drive appDataFolder utilisé par BastCompta. Ces fichiers ne sont pas visibles
+            dans l’interface Drive classique.</p>
         </div>
         <div class="user-actions">
           <button id="refreshHiddenDriveBtn" class="ghost" type="button">Actualiser</button>
@@ -189,6 +192,26 @@
         <div id="hiddenDriveStatus" class="hint">Clique sur Actualiser pour charger la liste.</div>
         <div id="hiddenDriveList" class="hidden-drive-list"></div>
       </div>
+    </div>
+  </div>
+
+  <div id="subscriptionModal" class="subscription-modal" aria-hidden="true">
+    <div class="subscription-modal-card">
+      <h3 id="subscriptionModalTitle">Abonnement BastCompta</h3>
+      <p id="subscriptionModalText"></p>
+
+      <div class="subscription-plans">
+        <div><strong>Mensuel</strong><span>4,99 €</span></div>
+        <div><strong>Trimestriel</strong><span>12,99 €</span></div>
+        <div><strong>Annuel</strong><span>49,99 €</span></div>
+      </div>
+
+      <div class="subscription-payment">
+        <p><strong>Compte bancaire :</strong> BE62 0013 1811 9761</p>
+        <p><strong>Communication :</strong> <span id="subscriptionCommunication">bastcompta</span></p>
+      </div>
+
+      <button id="closeSubscriptionModalBtn" class="primary" type="button">J’ai compris</button>
     </div>
   </div>
 
