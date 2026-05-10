@@ -1490,6 +1490,10 @@ async function checkSubscription(user) {
 
   const data = snap.data() || {};
 
+  if (data.subscriptionStatus === 'owner' && data.subscriptionActive === true) {
+    return { allowed: true, status: 'owner', data };
+  }
+
   if (data.subscriptionStatus === 'active' && data.subscriptionActive === true) {
     return { allowed: true, status: 'active', data };
   }
