@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <script src="js/storage.js"></script>
+  <script src="js/impots-access.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Impôts IPP</title>
+  <link rel="stylesheet" href="css/impots.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="title-wrap">
+        <h1>Impôts IPP</h1>
+        <p>Préparation belge pour indépendant personne physique : chiffres, codes probables et contrôles à vérifier.</p>
+      </div>
+      <div class="actions">
+        <button onclick="refreshAll()">Actualiser les chiffres</button>
+        <button onclick="printReport()">Imprimer / PDF</button>
+        <button class="primary" onclick="saveSettings(true)">Sauvegarder</button>
+      </div>
+    </div>
+
+    <div class="notice">
+      <strong>Important :</strong> ce module prépare une aide à l'encodage IPP. Il ne remplace pas Tax-on-web, la brochure officielle ou ton comptable. Les codes sont proposés selon une activité en personne physique et doivent être vérifiés chaque année.
+    </div>
+
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="tabs" id="tabs"></div>
+    <div id="pages"></div>
+  </div>
+
+  <script src="js/impots.js"></script>
+</body>
+
+</html>

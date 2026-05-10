@@ -67,6 +67,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
     const devisFrame = document.getElementById('devisFrame');
     const comptaFrame = document.getElementById('comptaFrame');
     const chantierFrame = document.getElementById('chantierFrame');
+    const impotsFrame = document.getElementById('impotsFrame');
     const authTabs = Array.from(document.querySelectorAll('.auth-tab'));
     const mainTabs = Array.from(document.querySelectorAll('.main-tab'));
 
@@ -91,6 +92,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       document.getElementById('panel-devis').classList.toggle('active', tabName === 'devis');
       document.getElementById('panel-compta').classList.toggle('active', tabName === 'compta');
       document.getElementById('panel-chantier').classList.toggle('active', tabName === 'chantier');
+      document.getElementById('panel-impots').classList.toggle('active', tabName === 'impots');
     }
 
     function humanizeAuthError(error) {
@@ -152,7 +154,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
     }
 
     function loadProtectedFrames() {
-      [devisFrame, comptaFrame, chantierFrame].forEach(frame => {
+      [devisFrame, comptaFrame, chantierFrame, impotsFrame].forEach(frame => {
         if (!frame) return;
         const targetSrc = frame.dataset.src || '';
         if (targetSrc && (!frame.getAttribute('src') || frame.getAttribute('src') === 'about:blank')) {
@@ -162,7 +164,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
     }
 
     function unloadProtectedFrames() {
-      [devisFrame, comptaFrame, chantierFrame].forEach(frame => {
+      [devisFrame, comptaFrame, chantierFrame, impotsFrame].forEach(frame => {
         if (!frame) return;
         frame.setAttribute('src', 'about:blank');
       });
@@ -240,7 +242,8 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       return [
         { key: 'devis-facture', label: 'Devis & Facture', frame: devisFrame },
         { key: 'comptabilite', label: 'Comptabilité', frame: comptaFrame },
-        { key: 'suivi-client', label: 'Suivi client', frame: chantierFrame }
+        { key: 'suivi-client', label: 'Suivi client', frame: chantierFrame },
+        { key: 'impots', label: 'Impôts IPP', frame: impotsFrame }
       ];
     }
 
@@ -467,6 +470,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
     const LOCAL_DEVIS_KEY = 'devis-facture-style-vrai-document';
     const LOCAL_COMPTA_KEY = 'comptabilite-local-v1';
     const LOCAL_CHANTIERS_KEY = 'bastcompta-chantiers-v1';
+    const LOCAL_IMPOTS_KEY = 'bastcompta-impots-belgique-v1';
 
     function backupStatus(text, type = '') {
       setMessage(text || '', type);
@@ -602,7 +606,8 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       return {
         devisFacture: safeJsonParse(localStorage.getItem(LOCAL_DEVIS_KEY), {}),
         comptabilite: safeJsonParse(localStorage.getItem(LOCAL_COMPTA_KEY), {}),
-        chantiers: safeJsonParse(localStorage.getItem(LOCAL_CHANTIERS_KEY), { version: 1, projects: [] })
+        chantiers: safeJsonParse(localStorage.getItem(LOCAL_CHANTIERS_KEY), { version: 1, projects: [] }),
+        impots: safeJsonParse(localStorage.getItem(LOCAL_IMPOTS_KEY), {})
       };
     }
 
@@ -964,6 +969,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       await waitForFrameReady(devisFrame);
       await waitForFrameReady(comptaFrame);
       await waitForFrameReady(chantierFrame);
+      await waitForFrameReady(impotsFrame);
 
       const zip = new JSZip();
       const now = new Date();
@@ -972,6 +978,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       const localDevis = localData.devisFacture || {};
       const localCompta = localData.comptabilite || {};
       const localChantiers = localData.chantiers || { version: 1, projects: [] };
+      const localImpots = localData.impots || {};
       const registry = buildClientRegistry(Array.isArray(localDevis.clients) ? localDevis.clients : []);
       const driveFilesManifest = [];
 
@@ -980,9 +987,9 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
         version: BAST_BACKUP_VERSION,
         createdAt: now.toISOString(),
         backupType: 'complete-local-drive-pdf-crm-suivi-client-faithful',
-        modules: ['devis-facture', 'comptabilite', 'suivi-client'],
+        modules: ['devis-facture', 'comptabilite', 'suivi-client', 'impots'],
         restore: { localStorage: true, googleDrive: true, pdfFiles: true, clients: true, crm: true, mode: 'complete-reconstruction' },
-        restoreHints: { localStorage: { devisFacture: LOCAL_DEVIS_KEY, comptabilite: LOCAL_COMPTA_KEY, suiviClient: LOCAL_CHANTIERS_KEY, chantiers: LOCAL_CHANTIERS_KEY }, driveSpace: 'appDataFolder', conflictPolicy: 'replace-existing-by-name-after-confirmation' },
+        restoreHints: { localStorage: { devisFacture: LOCAL_DEVIS_KEY, comptabilite: LOCAL_COMPTA_KEY, suiviClient: LOCAL_CHANTIERS_KEY, chantiers: LOCAL_CHANTIERS_KEY, impots: LOCAL_IMPOTS_KEY }, driveSpace: 'appDataFolder', conflictPolicy: 'replace-existing-by-name-after-confirmation' },
         crm: { clients: [], count: 0, exports: [] },
         clients: [],
         files: []
@@ -1000,9 +1007,11 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       zip.file('01-donnees-locales/devis-facture-local.json', JSON.stringify(localDevis, null, 2));
       zip.file('01-donnees-locales/comptabilite-local.json', JSON.stringify(localCompta, null, 2));
       zip.file('01-donnees-locales/suivi-client-local.json', JSON.stringify(localChantiers, null, 2));
+      zip.file('01-donnees-locales/impots-ipp-local.json', JSON.stringify(localImpots, null, 2));
       addFile('01-donnees-locales/devis-facture-local.json', 'localStorage', { module: 'devis-facture' });
       addFile('01-donnees-locales/comptabilite-local.json', 'localStorage', { module: 'comptabilite' });
       addFile('01-donnees-locales/suivi-client-local.json', 'localStorage', { module: 'suivi-client' });
+      addFile('01-donnees-locales/impots-ipp-local.json', 'localStorage', { module: 'impots' });
 
       const crmClients = registry.clients;
       manifest.crm.clients = crmClients.map(client => ({ id: client.id || '', name: client.canonicalName || client.name || '', email: client.email || '', phone: client.phone || '', vat: client.vat || client.clientVat || '', address: client.address || '', clientNumber: client.clientNumber || '' }));
@@ -1155,9 +1164,11 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       const devisEntry = zip.file('01-donnees-locales/devis-facture-local.json');
       const comptaEntry = zip.file('01-donnees-locales/comptabilite-local.json');
       const chantierEntry = zip.file('01-donnees-locales/suivi-client-local.json') || zip.file('01-donnees-locales/gestion-client-local.json');
+      const impotsEntry = zip.file('01-donnees-locales/impots-ipp-local.json');
       if (devisEntry) localStorage.setItem(LOCAL_DEVIS_KEY, await devisEntry.async('string'));
       if (comptaEntry) localStorage.setItem(LOCAL_COMPTA_KEY, await comptaEntry.async('string'));
       if (chantierEntry) localStorage.setItem(LOCAL_CHANTIERS_KEY, await chantierEntry.async('string'));
+      if (impotsEntry) localStorage.setItem(LOCAL_IMPOTS_KEY, await impotsEntry.async('string'));
       if (restoreDrive) {
         backupStatus('Restauration des fichiers Google Drive…', 'warning');
         await ensureFreshGoogleToken(true);
@@ -1178,6 +1189,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       devisFrame.contentWindow?.location?.reload();
       comptaFrame.contentWindow?.location?.reload();
       chantierFrame.contentWindow?.location?.reload();
+      impotsFrame.contentWindow?.location?.reload();
       if (isTokenFresh()) setTimeout(broadcastDriveToken, 800);
       alert('Restauration complète terminée.');
     }
@@ -1215,6 +1227,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       postToFrame(devisFrame, payload);
       postToFrame(comptaFrame, payload);
       postToFrame(chantierFrame, payload);
+      postToFrame(impotsFrame, payload);
       updateDriveButtons();
     }
 
@@ -1223,11 +1236,12 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       postToFrame(devisFrame, payload);
       postToFrame(comptaFrame, payload);
       postToFrame(chantierFrame, payload);
+      postToFrame(impotsFrame, payload);
       updateDriveButtons();
     }
 
     function bindIframeMessaging() {
-      [devisFrame, comptaFrame, chantierFrame].forEach(frame => {
+      [devisFrame, comptaFrame, chantierFrame, impotsFrame].forEach(frame => {
         frame.addEventListener('load', async () => {
           if (wasDrivePreviouslyConnected()) {
             await ensureFreshGoogleToken(false).catch(() => { });
@@ -1243,7 +1257,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       });
 
       window.addEventListener('message', async (event) => {
-        const allowedOrigins = [getFrameOrigin(devisFrame), getFrameOrigin(comptaFrame), getFrameOrigin(chantierFrame)];
+        const allowedOrigins = [getFrameOrigin(devisFrame), getFrameOrigin(comptaFrame), getFrameOrigin(chantierFrame), getFrameOrigin(impotsFrame)];
         if (!allowedOrigins.includes(event.origin)) return;
 
         const message = event.data || {};
@@ -1275,6 +1289,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
           postToFrame(chantierFrame, { type: 'BASTCOMPTA_CHANTIERS_UPDATED' });
           postToFrame(devisFrame, { type: 'BASTCOMPTA_CHANTIERS_UPDATED' });
           postToFrame(comptaFrame, { type: 'BASTCOMPTA_CHANTIERS_UPDATED' });
+          postToFrame(impotsFrame, { type: 'BASTCOMPTA_CHANTIERS_UPDATED' });
         }
 
         if (message.type === 'BASTCOMPTA_OPEN_DEVIS_DOCUMENT') {
@@ -1672,6 +1687,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
     bindIframeAutoResize(devisFrame);
     bindIframeAutoResize(comptaFrame);
     bindIframeAutoResize(chantierFrame);
+    bindIframeAutoResize(impotsFrame);
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {

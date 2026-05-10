@@ -1,7 +1,7 @@
 {
   "app": "BastCompta",
-  "version": 8,
-  "backupType": "complete-indexeddb-primary-css-separated-local-fallback-drive-pdf-crm-suivi-client-faithful",
+  "version": 9,
+  "backupType": "complete-indexeddb-primary-css-separated-local-fallback-drive-pdf-crm-suivi-client-impots-ipp",
   "contains": [
     "application",
     "localStorage",
@@ -16,7 +16,10 @@
     "suivi-client",
     "manifest",
     "css-separated",
-    "external-css"
+    "external-css",
+    "impots-ipp",
+    "declaration-impots",
+    "codes-fiscaux-belges"
   ],
-  "note": "Cette version conserve IndexedDB comme stockage principal avec localStorage en secours, et sépare les styles CSS des fichiers HTML dans un dossier css/ afin de faciliter la maintenance sans modifier la logique métier."
+  "note": "Version avec nouveau module Impôts IPP belge indépendant personne physique, relié au portail et aux données existantes sans modifier les modules métier terminés."
 }
