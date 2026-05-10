@@ -184,6 +184,7 @@ function showPortal(user) {
   authScreen.classList.add('hidden');
   portalScreen.classList.remove('hidden');
   currentUserEl.innerHTML = '🟢 Connecté';
+  showTrialInfo(user);
   sendVerificationBtn.style.display = user.emailVerified ? 'none' : 'inline-flex';
   updateDriveButtons();
 
@@ -1734,6 +1735,41 @@ bindIframeAutoResize(devisFrame);
 bindIframeAutoResize(comptaFrame);
 bindIframeAutoResize(chantierFrame);
 bindIframeAutoResize(impotsFrame);
+
+async function showTrialInfo(user) {
+  try {
+    const userRef = doc(db, 'users', user.uid);
+    const snap = await getDoc(userRef);
+
+    if (!snap.exists()) return;
+
+    const data = snap.data();
+
+    if (data.subscriptionStatus === 'owner') {
+      currentUserEl.innerHTML = '👑 Propriétaire';
+      return;
+    }
+
+    if (data.subscriptionStatus === 'active') {
+      currentUserEl.innerHTML = '🟢 Abonnement actif';
+      return;
+    }
+
+    if (data.subscriptionStatus !== 'trial') return;
+
+    const end = new Date(data.trialEndsAt);
+    const now = new Date();
+
+    const diffMs = end - now;
+    const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+
+    currentUserEl.innerHTML =
+      `🟢 Essai gratuit : ${daysLeft} jour${daysLeft > 1 ? 's' : ''} restant${daysLeft > 1 ? 's' : ''}`;
+
+  } catch (error) {
+    console.warn('Impossible d’afficher l’essai gratuit.', error);
+  }
+}
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
