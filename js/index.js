@@ -1448,18 +1448,27 @@ async function createUserDocument(user) {
   const trialEnd = new Date(now);
   trialEnd.setDate(now.getDate() + 14);
 
+  const isOwner = (user.email || '').toLowerCase() === 'seb-n@hotmail.com';
+
   const userData = {
     email: user.email || '',
     createdAt: now.toISOString(),
-    subscriptionStatus: 'trial',
+
+    subscriptionStatus: isOwner ? 'owner' : 'trial',
     subscriptionActive: true,
-    trialStartedAt: now.toISOString(),
-    trialEndsAt: trialEnd.toISOString(),
-    plan: 'monthly',
-    monthlyPrice: 4.99,
+
+    trialStartedAt: isOwner ? null : now.toISOString(),
+    trialEndsAt: isOwner ? null : trialEnd.toISOString(),
+
+    role: isOwner ? 'admin' : 'user',
+    plan: isOwner ? 'owner' : 'monthly',
+
+    monthlyPrice: isOwner ? 0 : 4.99,
     currency: 'EUR',
+
     stripeCustomerId: null,
     stripeSubscriptionId: null,
+
     updatedAt: now.toISOString()
   };
 
