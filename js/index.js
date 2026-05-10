@@ -14,6 +14,14 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       updateProfile
     } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      setDoc,
+      updateDoc
+    } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
     const firebaseConfig = {
       apiKey: "AIzaSyDK3VeC-TOfXliPrY9IrHN0tFPf7KEm_j0",
       authDomain: "bastcompta-3aa41.firebaseapp.com",
@@ -742,74 +750,122 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
 
         return pdf.output('blob');
       } finally {
-        try { devisFrame.contentDocument?.body?.classList.remove('backup-pdf-capture'); } catch { }
-        if (restore) {
-          try { await restore(); } catch (error) { console.warn('Restauration écran devis après PDF impossible.', error); }
+        try {
+          const doc = devisFrame.contentDocument;
+          doc?.body?.classList.remove("backup-pdf-capture");
+          if (restore) await restore();
+        } catch (error) {
+          console.warn("Restauration après capture PDF impossible.", error);
         }
-        if (previousTab !== 'devis') {
-          switchMainTab(previousTab);
-        }
+        if (previousTab !== "devis") switchMainTab(previousTab);
       }
     }
 
-    async function ensureBackupLibraries() {
-      if (!window.JSZip) throw new Error('La librairie ZIP n’est pas chargée.');
-      if (!window.jspdf?.jsPDF) throw new Error('La librairie PDF jsPDF n’est pas chargée.');
-      if (!window.html2canvas) throw new Error('La librairie html2canvas n’est pas chargée.');
+    function isRenderableBusinessDocument(file, parsed = null) {
+      const name = String(file?.name || '').toLowerCase();
+      if (!name.endsWith('.json')) return false;
+      if (name.startsWith('devis-') || name.startsWith('facture-') || name.startsWith('rappel-')) return true;
+      return !!(parsed?.quote || parsed?.invoice || parsed?.reminder);
     }
 
-    async function listAllAppDriveFiles() {
-      await ensureFreshGoogleToken(true);
-      let pageToken = null;
+    async function makePdfForDriveJsonFile(file, parsed) {
+      const name = String(file?.name || '').toLowerCase();
+      if (name.startsWith('devis-') || parsed?.quote) return makeRenderedDocumentPdfBlob(parsed, 'quote');
+      if (name.startsWith('facture-') || parsed?.invoice) return makeRenderedDocumentPdfBlob(parsed, 'invoice');
+      if (name.startsWith('rappel-') || parsed?.reminder) return makeRenderedDocumentPdfBlob(parsed, 'reminder');
+      if (name.includes('comptabilite')) return makeComptaReportPdfBlob(parsed);
+      return null;
+    }
+
+    async function ensureBackupLibraries() {
+      if (!window.JSZip || !window.jspdf?.jsPDF || !window.html2canvas) {
+        throw new Error('Bibliothèques de sauvegarde incomplètes. Vérifie JSZip, jsPDF et html2canvas dans index.html.');
+      }
+    }
+
+    async function driveRequest(path, options = {}) {
+      const token = await ensureGoogleAccessToken(false);
+      const res = await fetch('https://www.googleapis.com/drive/v3/' + path, {
+        ...options,
+        headers: {
+          Authorization: 'Bearer ' + token,
+          ...(options.headers || {})
+        }
+      });
+      if (!res.ok) throw new Error('Drive API error ' + res.status);
+      return res;
+    }
+
+    async function listDriveAppDataFiles() {
       const files = [];
+      let pageToken = '';
       do {
-        const response = await gapi.client.drive.files.list({ spaces: 'appDataFolder', q: 'trashed=false', pageSize: 1000, pageToken: pageToken || undefined, fields: 'nextPageToken, files(id, name, mimeType, modifiedTime, size)' });
-        files.push(...(response.result.files || []));
-        pageToken = response.result.nextPageToken || null;
+        const params = new URLSearchParams({
+          spaces: 'appDataFolder',
+          fields: 'nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime)',
+          pageSize: '100',
+          orderBy: 'modifiedTime desc'
+        });
+        if (pageToken) params.set('pageToken', pageToken);
+        const res = await driveRequest('files?' + params.toString());
+        const data = await res.json();
+        files.push(...(data.files || []));
+        pageToken = data.nextPageToken || '';
       } while (pageToken);
       return files;
     }
 
     async function downloadDriveFileBlob(file) {
-      const response = await fetch('https://www.googleapis.com/drive/v3/files/' + file.id + '?alt=media', { headers: { Authorization: 'Bearer ' + googleAccessToken } });
-      if (!response.ok) throw new Error(await response.text());
-      return await response.blob();
+      const token = await ensureGoogleAccessToken(false);
+      const res = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(file.id) + '?alt=media', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (!res.ok) throw new Error('Téléchargement Drive impossible: ' + res.status);
+      return await res.blob();
     }
 
-    function canPreviewHiddenDriveDocument(file) {
-      const lower = String(file?.name || '').toLowerCase();
-      return lower.endsWith('.json') && (lower.startsWith('devis-') || lower.startsWith('facture-') || lower.startsWith('rappel-'));
+    async function readDriveJsonFile(file) {
+      const blob = await downloadDriveFileBlob(file);
+      const text = await blob.text();
+      return JSON.parse(text);
+    }
+
+    async function deleteHiddenDriveFile(file) {
+      const token = await ensureGoogleAccessToken(false);
+      const res = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(file.id), {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (!res.ok && res.status !== 204) throw new Error('Suppression Drive impossible: ' + res.status);
+      return true;
+    }
+
+    function isLikelyPreviewableDriveDocument(file) {
+      const name = String(file?.name || '').toLowerCase();
+      return name.endsWith('.json') && (name.startsWith('devis-') || name.startsWith('facture-') || name.startsWith('rappel-') || name.includes('comptabilite'));
     }
 
     async function previewHiddenDriveDocumentPdf(file, button = null) {
-      let previousText = '';
+      const previousText = button?.textContent;
       try {
         if (button) {
-          previousText = button.textContent;
           button.disabled = true;
-          button.textContent = 'Préparation…';
+          button.textContent = 'Aperçu…';
         }
 
-        const blob = await downloadDriveFileBlob(file);
-        const raw = await blob.text();
-        const parsed = JSON.parse(raw);
-        const registry = buildClientRegistry(parsed?.clients || [], getLocalBackupData().devisFacture?.clients || []);
-        const info = detectDocumentInfo(file.name || '', parsed, registry);
-        if (!info.docKey) throw new Error('Type de document non reconnu.');
-
-        const pdfBlob = await makeRenderedDocumentPdfBlob(parsed, info.docKey);
-        if (!pdfBlob) throw new Error('Impossible de générer le PDF.');
-
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-        const previewWindow = window.open(pdfUrl, '_blank', 'noopener,noreferrer');
-        if (!previewWindow) {
-          downloadBlob(pdfBlob, String(file.name || 'document').replace(/\.json$/i, '.pdf'));
-          alert('L’aperçu a été bloqué par le navigateur. Le PDF a été téléchargé à la place.');
+        const parsed = await readDriveJsonFile(file);
+        const pdfBlob = await makePdfForDriveJsonFile(file, parsed);
+        if (!pdfBlob) {
+          alert('Aperçu PDF indisponible pour ce fichier.');
+          return;
         }
-        setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
+
+        const url = URL.createObjectURL(pdfBlob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
       } catch (error) {
         console.error(error);
-        alert('Impossible de générer l’aperçu PDF de ce document. Vérifie que le fichier est bien un devis, une facture ou un rappel BastCompta.');
+        alert('Impossible de générer l’aperçu PDF depuis ce fichier Drive caché.');
       } finally {
         if (button) {
           button.disabled = false;
@@ -818,60 +874,39 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
       }
     }
 
-    async function deleteHiddenDriveFile(file) {
-      await ensureFreshGoogleToken(true);
-      await gapi.client.drive.files.delete({ fileId: file.id });
-    }
-
-    function formatDriveFileSize(size) {
-      const bytes = Number(size || 0);
-      if (!bytes) return 'taille inconnue';
-      if (bytes < 1024) return bytes + ' o';
-      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1).replace('.', ',') + ' Ko';
-      return (bytes / (1024 * 1024)).toFixed(1).replace('.', ',') + ' Mo';
-    }
-
-    function formatDriveDate(value) {
-      if (!value) return 'date inconnue';
-      try {
-        return new Intl.DateTimeFormat('fr-BE', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
-      } catch {
-        return value;
-      }
-    }
-
-    function openHiddenDriveModal() {
-      hiddenDriveModal.classList.add('open');
-      hiddenDriveModal.setAttribute('aria-hidden', 'false');
+    async function openHiddenDriveModal() {
       settingsMenu?.classList.remove('open');
-      refreshHiddenDriveList();
+      hiddenDriveModal?.classList.add('open');
+      hiddenDriveModal?.setAttribute('aria-hidden', 'false');
+      await refreshHiddenDriveList();
     }
 
     function closeHiddenDriveModal() {
-      hiddenDriveModal.classList.remove('open');
-      hiddenDriveModal.setAttribute('aria-hidden', 'true');
+      hiddenDriveModal?.classList.remove('open');
+      hiddenDriveModal?.setAttribute('aria-hidden', 'true');
     }
 
     async function refreshHiddenDriveList() {
+      if (!hiddenDriveStatus || !hiddenDriveList) return;
+      hiddenDriveStatus.textContent = 'Chargement des fichiers Drive cachés…';
+      hiddenDriveList.innerHTML = '';
+
       try {
-        hiddenDriveStatus.textContent = 'Chargement des fichiers cachés Drive…';
-        hiddenDriveList.innerHTML = '';
-        const files = await listAllAppDriveFiles();
+        await ensureGoogleAccessToken(false);
+        const files = await listDriveAppDataFiles();
         if (!files.length) {
-          hiddenDriveStatus.textContent = 'Aucun fichier trouvé dans le Drive caché de BastCompta.';
+          hiddenDriveStatus.textContent = 'Aucun fichier caché trouvé dans appDataFolder.';
           return;
         }
 
         hiddenDriveStatus.textContent = files.length + ' fichier(s) trouvé(s).';
-        hiddenDriveList.innerHTML = files
-          .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'fr'))
-          .map(file => {
-            const name = String(file.name || 'fichier-sans-nom').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            const meta = [file.mimeType || 'type inconnu', formatDriveFileSize(file.size), 'modifié le ' + formatDriveDate(file.modifiedTime)].join(' · ');
-            return '<div class="hidden-drive-item">'
+        hiddenDriveList.innerHTML = files.map(file => {
+          const name = String(file.name || 'Sans nom').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const meta = [file.mimeType || '', file.size ? (Math.round(Number(file.size) / 1024) + ' Ko') : '', file.modifiedTime ? ('modifié le ' + new Date(file.modifiedTime).toLocaleString('fr-BE')) : ''].filter(Boolean).join(' · ');
+          return '<div class="hidden-drive-item">'
               + '<div><div class="hidden-drive-name">' + name + '</div><div class="hidden-drive-meta">' + meta + '</div></div>'
               + '<div class="hidden-drive-actions">'
-              + (canPreviewHiddenDriveDocument(file) ? '<button class="small primary" type="button" data-preview-drive-file="' + file.id + '">Aperçu PDF</button>' : '')
+              + (isLikelyPreviewableDriveDocument(file) ? '<button class="small primary" type="button" data-preview-drive-file="' + file.id + '">Aperçu PDF</button>' : '')
               + '<button class="small" type="button" data-download-drive-file="' + file.id + '">Télécharger</button>'
               + '<button class="small danger" type="button" data-delete-drive-file="' + file.id + '" data-drive-file-name="' + name + '">Supprimer</button>'
               + '</div>'
@@ -1038,362 +1073,208 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
         addFile(ficheTxtPath, 'crm-client-fiche', { module: 'devis-facture', client: clientName });
         let manifestClient = manifest.clients.find(item => item.name === clientName);
         if (!manifestClient) { manifestClient = { name: clientName, crm: ficheJsonPath, documents: [] }; manifest.clients.push(manifestClient); }
-        else { manifestClient.crm = manifestClient.crm || ficheJsonPath; }
       }
 
-      for (const docKey of ['quote', 'invoice', 'reminder']) {
-        const doc = localDevis[docKey] || {};
-        if (!doc.documentNumber && !doc.clientName) continue;
-        const names = { quote: 'devis', invoice: 'facture', reminder: 'rappel' };
-        const folders = { quote: 'Devis', invoice: 'Factures', reminder: 'Rappels' };
-        const info = detectDocumentInfo(names[docKey] + '-' + (doc.documentNumber || 'local') + '.json', localDevis, registry);
-        const number = sanitizePathPart(doc.documentNumber || docKey, docKey);
-        const jsonPath = 'Clients/' + info.clientName + '/' + folders[docKey] + '/' + names[docKey] + '-' + number + '-local.json';
-        const pdfPath = 'Clients/' + info.clientName + '/' + folders[docKey] + '/' + names[docKey] + '-' + number + '-local.pdf';
-        zip.file(jsonPath, JSON.stringify(localDevis, null, 2));
-        addFile(jsonPath, 'client-json', { module: 'devis-facture', documentType: names[docKey], client: info.clientName });
-        const pdf = await makeRenderedDocumentPdfBlob(localDevis, docKey);
-        if (pdf) { zip.file(pdfPath, pdf); addFile(pdfPath, 'pdf-fidele', { module: 'devis-facture', documentType: names[docKey], client: info.clientName }); }
-        addClientDoc(info, names[docKey], jsonPath, pdf ? pdfPath : '', 'localStorage');
+      const docCollections = [
+        { key: 'quotes', type: 'devis', docKey: 'quote', folder: 'Devis' },
+        { key: 'invoices', type: 'facture', docKey: 'invoice', folder: 'Factures' },
+        { key: 'reminders', type: 'rappel', docKey: 'reminder', folder: 'Rappels' }
+      ];
+
+      for (const collection of docCollections) {
+        const list = Array.isArray(localDevis[collection.key]) ? localDevis[collection.key] : [];
+        for (const doc of list) {
+          const resolvedClient = resolveClientForDocument(doc, registry);
+          const clientName = sanitizePathPart(resolvedClient?.canonicalName || resolvedClient?.name || doc.clientName || 'Sans client');
+          const number = sanitizePathPart(doc.documentNumber || doc.id || collection.type, 'sans-numero');
+          const path = 'Clients/' + clientName + '/' + collection.folder + '/' + collection.type + '-' + number + '.json';
+          const wrapped = { [collection.docKey]: doc, clients: localDevis.clients || [] };
+          zip.file(path, JSON.stringify(wrapped, null, 2));
+          addFile(path, collection.type + '-json', { module: 'devis-facture', client: clientName, documentNumber: number });
+
+          let pdfPath = '';
+          const pdfBlob = await makeRenderedDocumentPdfBlob(wrapped, collection.docKey);
+          if (pdfBlob) {
+            pdfPath = 'Clients/' + clientName + '/' + collection.folder + '/' + collection.type + '-' + number + '.pdf';
+            zip.file(pdfPath, pdfBlob);
+            addFile(pdfPath, collection.type + '-pdf', { module: 'devis-facture', client: clientName, documentNumber: number });
+          }
+
+          addClientDoc({ clientName, documentNumber: number }, collection.type, path, pdfPath, 'localStorage');
+        }
       }
 
-      const comptaReportPath = 'Comptabilite/Rapports/rapport-comptable.pdf';
       const comptaPdf = makeComptaReportPdfBlob(localCompta);
-      if (comptaPdf) { zip.file(comptaReportPath, comptaPdf); addFile(comptaReportPath, 'pdf', { module: 'comptabilite' }); }
-
-      await addApplicationSourceFiles(zip);
-      ['index.html', 'devis-facture.html', 'comptabilite.html', 'suivi-client.html'].forEach(fileName => addFile('Application/' + fileName, 'application-source', { module: fileName.replace('.html', '') }));
+      if (comptaPdf) {
+        zip.file('Comptabilite/Rapport-comptable.pdf', comptaPdf);
+        addFile('Comptabilite/Rapport-comptable.pdf', 'compta-pdf', { module: 'comptabilite' });
+      }
 
       if (isTokenFresh() || wasDrivePreviouslyConnected()) {
-        await ensureFreshGoogleToken(true);
-        backupStatus('Récupération des fichiers Google Drive de l’application…', 'warning');
-        const files = await listAllAppDriveFiles();
-        const parsedJsonByName = new Map();
-
-        for (const file of files) {
-          try {
-            const blob = await downloadDriveFileBlob(file);
+        try {
+          backupStatus('Ajout des fichiers Google Drive cachés…', 'warning');
+          await ensureGoogleAccessToken(false);
+          const driveFiles = await listDriveAppDataFiles();
+          for (const file of driveFiles) {
             let parsed = null;
-            if (String(file.name || '').toLowerCase().endsWith('.json')) {
-              parsed = safeJsonParse(await blob.text(), null);
-              if (parsed?.clients && Array.isArray(parsed.clients)) parsed.clients.forEach(client => registry.remember(client));
-              parsedJsonByName.set(String(file.name || '').toLowerCase(), parsed);
+            let blob = null;
+            try {
+              blob = await downloadDriveFileBlob(file);
+              if (String(file.name || '').toLowerCase().endsWith('.json')) parsed = JSON.parse(await blob.text());
+              if (!blob) blob = await downloadDriveFileBlob(file);
+            } catch (error) {
+              console.warn('Fichier Drive ignoré :', file.name, error);
+              continue;
             }
-          } catch (error) {
-            console.warn('Prélecture Drive ignorée :', file.name, error);
-          }
-        }
 
-        for (const file of files) {
-          try {
-            const blob = await downloadDriveFileBlob(file);
-            const originalPath = 'Google-Drive-AppData/_originaux/' + sanitizePathPart(file.name || file.id);
-            zip.file(originalPath, blob);
-            addFile(originalPath, 'drive-original', { driveId: file.id, name: file.name, mimeType: file.mimeType, modifiedTime: file.modifiedTime });
+            const zipPath = backupZipPathForDriveFile(file, parsed, registry);
+            zip.file(zipPath, blob);
+            addFile(zipPath, 'googleDriveAppData', { module: 'drive', name: file.name, id: file.id });
+            driveFilesManifest.push({ id: file.id, name: file.name, path: zipPath, mimeType: file.mimeType, modifiedTime: file.modifiedTime });
 
-            let parsed = parsedJsonByName.get(String(file.name || '').toLowerCase()) || null;
-            const organizedPath = backupZipPathForDriveFile(file, parsed, registry);
-            if (organizedPath !== originalPath) { zip.file(organizedPath, blob); addFile(organizedPath, 'drive-organized', { driveId: file.id, name: file.name, mimeType: file.mimeType, modifiedTime: file.modifiedTime }); }
-            driveFilesManifest.push({ ...file, backupPath: originalPath, organizedPath });
-
-            if (parsed) {
-              if (Array.isArray(parsed.clients) && String(file.name || '').toLowerCase().includes('crm')) {
-                const crmDrivePath = 'CRM/google-drive-' + sanitizePathPart(file.name || 'crm.json');
-                zip.file(crmDrivePath, JSON.stringify(parsed.clients, null, 2));
-                addFile(crmDrivePath, 'crm-json-from-drive', { driveId: file.id, module: 'devis-facture', clientCount: parsed.clients.length });
-                manifest.crm.exports.push(crmDrivePath);
-              }
+            if (parsed && isRenderableBusinessDocument(file, parsed)) {
               const info = detectDocumentInfo(file.name, parsed, registry);
-              if (info.docKey) {
-                const pdf = await makeRenderedDocumentPdfBlob(parsed, info.docKey);
-                const pdfName = sanitizePathPart(String(file.name || info.documentNumber).replace(/\.json$/i, '.pdf'));
-                const pdfPath = 'Clients/' + info.clientName + '/' + info.folder + '/' + pdfName;
-                if (pdf) { zip.file(pdfPath, pdf); addFile(pdfPath, 'pdf-fidele-from-drive-json', { driveId: file.id, documentType: info.label, client: info.clientName }); }
-                addClientDoc(info, info.label, organizedPath, pdf ? pdfPath : '', 'googleDrive');
+              const pdfBlob = await makePdfForDriveJsonFile(file, parsed);
+              if (pdfBlob) {
+                const pdfPath = zipPath.replace(/\.json$/i, '.pdf').replace('/Donnees/', '/PDF/');
+                zip.file(pdfPath, pdfBlob);
+                addFile(pdfPath, 'pdf-fidele-drive', { module: 'drive', name: file.name, client: info.clientName, documentNumber: info.documentNumber });
+                addClientDoc(info, info.label, zipPath, pdfPath, 'googleDriveAppData');
+              } else if (info.docKey) {
+                addClientDoc(info, info.label, zipPath, '', 'googleDriveAppData');
               }
             }
-          } catch (error) {
-            console.warn('Fichier Drive ignoré pendant la sauvegarde :', file.name, error);
-            driveFilesManifest.push({ ...file, error: String(error?.message || error) });
           }
+        } catch (error) {
+          console.warn('Sauvegarde Drive ignorée :', error);
+          manifest.driveWarning = error?.message || 'Drive indisponible';
         }
       }
 
-      const driveManifestPath = 'Google-Drive-AppData/manifest-drive.json';
-      zip.file(driveManifestPath, JSON.stringify(driveFilesManifest, null, 2));
-      addFile(driveManifestPath, 'drive-manifest');
-      manifest.summary = { clientCount: manifest.clients.length, crmClientCount: manifest.crm.count, fileCount: manifest.files.length, driveFileCount: driveFilesManifest.length, createdBy: 'BastCompta portal' };
-      const manifestJson = JSON.stringify(manifest, null, 2);
-      zip.file('manifest.json', manifestJson);
-      zip.file('00-manifest.json', manifestJson);
-      const blob = await zip.generateAsync({ type: 'blob' });
-      downloadBlob(blob, 'Sauvegarde-BastCompta-' + stamp + '.zip');
-      backupStatus('Sauvegarde complète ZIP téléchargée sur ce PC avec manifest.json et PDF fidèles.', 'success');
-    }
+      manifest.driveFiles = driveFilesManifest;
+      manifest.clients.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+      manifest.files.sort((a, b) => a.path.localeCompare(b.path, 'fr'));
+      zip.file('manifest-bastcompta.json', JSON.stringify(manifest, null, 2));
 
-    async function uploadBlobToAppDataFolder(blob, fileName, mimeType, existingId = '') {
-      await ensureFreshGoogleToken(true);
-      const metadata = existingId ? { name: fileName } : { name: fileName, parents: ['appDataFolder'] };
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      form.append('file', blob, fileName);
-      let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', method = 'POST';
-      if (existingId) { url = 'https://www.googleapis.com/upload/drive/v3/files/' + existingId + '?uploadType=multipart&fields=id,name'; method = 'PATCH'; }
-      const res = await fetch(url, { method, headers: { Authorization: 'Bearer ' + googleAccessToken }, body: form });
-      if (!res.ok) throw new Error(await res.text());
-      return await res.json();
-    }
+      await addApplicationSourceFiles(zip);
 
-    async function findDriveFileByName(fileName) {
-      await ensureFreshGoogleToken(true);
-      const escaped = String(fileName).replace(/'/g, "\\'");
-      const res = await gapi.client.drive.files.list({ spaces: 'appDataFolder', q: "name='" + escaped + "' and trashed=false", pageSize: 1, fields: 'files(id,name)' });
-      return (res.result.files || [])[0] || null;
-    }
-
-    async function restoreFullBackupFromZip(file) {
-      await ensureBackupLibraries();
-      const zip = await JSZip.loadAsync(file);
-      const manifestEntry = zip.file('manifest.json') || zip.file('00-manifest.json');
-      if (!manifestEntry) { alert('Ce ZIP ne semble pas être une sauvegarde BastCompta complète : manifest.json manquant.'); return; }
-      const manifest = safeJsonParse(await manifestEntry.async('string'), {});
-      if (manifest.app !== 'BastCompta') { alert('Ce ZIP ne correspond pas à une sauvegarde BastCompta reconnue.'); return; }
-      const restoreDrive = confirm('Restaurer aussi les fichiers Google Drive de l’application ?\n\nOK = données locales + Drive\nAnnuler = données locales uniquement');
-      if (!confirm('Confirmer la restauration complète ?\n\nLes données locales actuelles seront remplacées.')) return;
-      backupStatus('Restauration des données locales…', 'warning');
-      const devisEntry = zip.file('01-donnees-locales/devis-facture-local.json');
-      const comptaEntry = zip.file('01-donnees-locales/comptabilite-local.json');
-      const chantierEntry = zip.file('01-donnees-locales/suivi-client-local.json') || zip.file('01-donnees-locales/gestion-client-local.json');
-      const impotsEntry = zip.file('01-donnees-locales/impots-ipp-local.json');
-      if (devisEntry) localStorage.setItem(LOCAL_DEVIS_KEY, await devisEntry.async('string'));
-      if (comptaEntry) localStorage.setItem(LOCAL_COMPTA_KEY, await comptaEntry.async('string'));
-      if (chantierEntry) localStorage.setItem(LOCAL_CHANTIERS_KEY, await chantierEntry.async('string'));
-      if (impotsEntry) localStorage.setItem(LOCAL_IMPOTS_KEY, await impotsEntry.async('string'));
-      if (restoreDrive) {
-        backupStatus('Restauration des fichiers Google Drive…', 'warning');
-        await ensureFreshGoogleToken(true);
-        const driveManifestEntry = zip.file('Google-Drive-AppData/manifest-drive.json');
-        const driveManifest = driveManifestEntry ? safeJsonParse(await driveManifestEntry.async('string'), []) : [];
-        for (const item of driveManifest) {
-          if (!item.backupPath) continue;
-          const entry = zip.file(item.backupPath);
-          if (!entry) continue;
-          const name = item.name || item.backupPath.split('/').pop();
-          const blob = await entry.async('blob');
-          const existing = await findDriveFileByName(name);
-          await uploadBlobToAppDataFolder(blob, name, item.mimeType || blob.type || 'application/octet-stream', existing?.id || '');
-        }
-      }
-      backupStatus('Restauration terminée. Les modules sont rechargés.', 'success');
-      loadProtectedFrames();
-      devisFrame.contentWindow?.location?.reload();
-      comptaFrame.contentWindow?.location?.reload();
-      chantierFrame.contentWindow?.location?.reload();
-      impotsFrame.contentWindow?.location?.reload();
-      if (isTokenFresh()) setTimeout(broadcastDriveToken, 800);
-      alert('Restauration complète terminée.');
+      backupStatus('Création du fichier ZIP…', 'warning');
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      downloadBlob(blob, 'Sauvegarde-BastCompta-complete-' + stamp + '.zip');
+      return true;
     }
 
     async function handleFullBackupClick() {
-      showBlockingProgress('Sauvegarde en cours', 'Préparation de la sauvegarde complète… Veuillez patienter.');
-      try { await createFullBackupZip(); }
-      catch (error) { console.error(error); backupStatus('La sauvegarde complète a échoué.', 'error'); alert(error?.message || 'La sauvegarde complète a échoué.'); }
-      finally { hideBlockingProgress(); }
+      showBlockingProgress('Sauvegarde complète', 'Préparation des données…');
+      try {
+        await saveAllModulesFromPortal();
+        await createFullBackupZip();
+        backupStatus('Sauvegarde ZIP complète créée.', 'success');
+      } catch (error) {
+        console.error(error);
+        alert('Impossible de créer la sauvegarde complète : ' + (error?.message || 'erreur inconnue'));
+        backupStatus('Erreur sauvegarde complète.', 'error');
+      } finally {
+        hideBlockingProgress();
+      }
     }
 
     function handleFullRestoreClick() {
-      if (fullRestoreInput) fullRestoreInput.click();
+      settingsMenu?.classList.remove('open');
+      fullRestoreInput?.click();
     }
 
     async function handleFullRestoreFile(event) {
       const file = event.target.files?.[0];
       event.target.value = '';
       if (!file) return;
-      showBlockingProgress('Restauration en cours', 'Restauration de la sauvegarde… Veuillez patienter.');
-      try { await restoreFullBackupFromZip(file); }
-      catch (error) { console.error(error); backupStatus('La restauration a échoué.', 'error'); alert(error?.message || 'La restauration a échoué.'); }
-      finally { hideBlockingProgress(); }
-    }
 
-    function broadcastDriveToken() {
-      if (!isTokenFresh()) return;
+      const confirmed = confirm('Restaurer cette sauvegarde complète ?\n\nLes données locales actuelles seront remplacées. Si la sauvegarde contient des fichiers Drive, ils pourront être renvoyés vers le Drive caché après confirmation.');
+      if (!confirmed) return;
 
-      const payload = {
-        type: 'BASTCOMPTA_GOOGLE_TOKEN',
-        accessToken: googleAccessToken,
-        expiresAt: googleTokenExpiresAt
-      };
-
-      postToFrame(devisFrame, payload);
-      postToFrame(comptaFrame, payload);
-      postToFrame(chantierFrame, payload);
-      postToFrame(impotsFrame, payload);
-      updateDriveButtons();
-    }
-
-    function broadcastDriveDisconnected() {
-      const payload = { type: 'BASTCOMPTA_GOOGLE_LOGOUT' };
-      postToFrame(devisFrame, payload);
-      postToFrame(comptaFrame, payload);
-      postToFrame(chantierFrame, payload);
-      postToFrame(impotsFrame, payload);
-      updateDriveButtons();
-    }
-
-    function bindIframeMessaging() {
-      [devisFrame, comptaFrame, chantierFrame, impotsFrame].forEach(frame => {
-        frame.addEventListener('load', async () => {
-          if (wasDrivePreviouslyConnected()) {
-            await ensureFreshGoogleToken(false).catch(() => { });
-          }
-          if (isTokenFresh()) {
-            postToFrame(frame, {
-              type: 'BASTCOMPTA_GOOGLE_TOKEN',
-              accessToken: googleAccessToken,
-              expiresAt: googleTokenExpiresAt
-            });
-          }
-        });
-      });
-
-      window.addEventListener('message', async (event) => {
-        const allowedOrigins = [getFrameOrigin(devisFrame), getFrameOrigin(comptaFrame), getFrameOrigin(chantierFrame), getFrameOrigin(impotsFrame)];
-        if (!allowedOrigins.includes(event.origin)) return;
-
-        const message = event.data || {};
-
-        if (message.type === 'BASTCOMPTA_REFRESH_TOKEN') {
-          try {
-            await ensureFreshGoogleToken(false);
-            broadcastDriveToken();
-          } catch (error) {
-            console.warn('Renouvellement Google Drive impossible :', error);
-            disconnectGoogleDrive(false);
-          }
-        }
-
-        if (message.type === 'BASTCOMPTA_DRIVE_STATUS_REQUEST') {
-          if (isTokenFresh()) {
-            broadcastDriveToken();
-          } else if (wasDrivePreviouslyConnected()) {
-            try {
-              await ensureFreshGoogleToken(false);
-              broadcastDriveToken();
-            } catch {
-              broadcastDriveDisconnected();
-            }
-          }
-        }
-
-        if (message.type === 'BASTCOMPTA_CHANTIERS_UPDATED') {
-          postToFrame(chantierFrame, { type: 'BASTCOMPTA_CHANTIERS_UPDATED' });
-          postToFrame(devisFrame, { type: 'BASTCOMPTA_CHANTIERS_UPDATED' });
-          postToFrame(comptaFrame, { type: 'BASTCOMPTA_CHANTIERS_UPDATED' });
-          postToFrame(impotsFrame, { type: 'BASTCOMPTA_CHANTIERS_UPDATED' });
-        }
-
-        if (message.type === 'BASTCOMPTA_OPEN_DEVIS_DOCUMENT') {
-          switchMainTab('devis');
-          setTimeout(() => {
-            postToFrame(devisFrame, {
-              type: 'BASTCOMPTA_SET_ACTIVE_PAGE',
-              pageKey: message.docKey || 'quote',
-              docKey: message.docKey || 'quote'
-            });
-          }, 120);
-        }
-
-        if (message.type === 'BASTCOMPTA_OPEN_CHANTIER') {
-          switchMainTab('chantier');
-          setTimeout(() => {
-            postToFrame(chantierFrame, {
-              type: 'BASTCOMPTA_OPEN_CHANTIER',
-              projectId: message.projectId || ''
-            });
-          }, 120);
-        }
-      });
-    }
-
-    function applyGoogleTokenResponse(resp) {
-      if (!resp?.access_token) {
-        throw new Error('Réponse Google invalide.');
-      }
-
-      googleAccessToken = resp.access_token;
-      googleTokenExpiresAt = Date.now() + (Number(resp.expires_in || 3600) * 1000);
-      googleDriveReady = true;
-      markDriveConnected();
-
-      if (window.gapi?.client) {
-        gapi.client.setToken({ access_token: googleAccessToken });
-      }
-
-      updateDriveButtons();
-      broadcastDriveToken();
-    }
-
-    function requestGoogleDriveAccess(promptValue = 'consent') {
-      return new Promise((resolve, reject) => {
-        if (!googleTokenClient) {
-          reject(new Error("Google Drive n'est pas prêt."));
-          return;
-        }
-
-        googleRequestInFlight = { resolve, reject };
-
-        try {
-          googleTokenClient.requestAccessToken({ prompt: promptValue });
-        } catch (error) {
-          googleRequestInFlight = null;
-          reject(error);
-        }
-      });
-    }
-
-    async function ensureFreshGoogleToken(forceInteractive = false) {
-      if (isTokenFresh()) {
-        return googleAccessToken;
-      }
-
-      if (!googleDriveReady || !googleTokenClient) {
-        throw new Error("Google Drive n'est pas prêt.");
-      }
-
-      if (forceInteractive || !wasDrivePreviouslyConnected()) {
-        await requestGoogleDriveAccess('consent');
-        return googleAccessToken;
-      }
-
-      // 1) Après un refresh, on tente d'abord une reconnexion silencieuse.
+      showBlockingProgress('Restauration complète', 'Lecture du fichier ZIP…');
       try {
-        await requestGoogleDriveAccess('');
-        return googleAccessToken;
-      } catch (silentError) {
-        console.info('Reconnexion silencieuse Google Drive refusée, passage en mode confirmation :', silentError);
-      }
+        await ensureBackupLibraries();
+        const zip = await JSZip.loadAsync(file);
+        const manifestFile = zip.file('manifest-bastcompta.json');
+        const manifest = manifestFile ? JSON.parse(await manifestFile.async('string')) : null;
 
-      // 2) Si Google ou le navigateur refuse le mode silencieux, on ouvre la confirmation Google normale.
-      await requestGoogleDriveAccess('consent');
-      return googleAccessToken;
-    }
+        const readJsonFromZip = async (path, fallback) => {
+          const item = zip.file(path);
+          if (!item) return fallback;
+          return JSON.parse(await item.async('string'));
+        };
 
-    async function maybeRestoreDriveConnection() {
-      if (silentReconnectAttempted || !wasDrivePreviouslyConnected()) return;
-      silentReconnectAttempted = true;
+        const devisData = await readJsonFromZip('01-donnees-locales/devis-facture-local.json', null);
+        const comptaData = await readJsonFromZip('01-donnees-locales/comptabilite-local.json', null);
+        const suiviData = await readJsonFromZip('01-donnees-locales/suivi-client-local.json', null);
+        const impotsData = await readJsonFromZip('01-donnees-locales/impots-ipp-local.json', null);
 
-      try {
-        await ensureFreshGoogleToken(false);
+        if (devisData) localStorage.setItem(LOCAL_DEVIS_KEY, JSON.stringify(devisData));
+        if (comptaData) localStorage.setItem(LOCAL_COMPTA_KEY, JSON.stringify(comptaData));
+        if (suiviData) localStorage.setItem(LOCAL_CHANTIERS_KEY, JSON.stringify(suiviData));
+        if (impotsData) localStorage.setItem(LOCAL_IMPOTS_KEY, JSON.stringify(impotsData));
+
+        const driveFiles = [];
+        if (manifest?.files) {
+          for (const entry of manifest.files) {
+            if (entry.category === 'googleDriveAppData' && entry.path && zip.file(entry.path)) driveFiles.push(entry);
+          }
+        }
+
+        if (driveFiles.length && confirm(driveFiles.length + ' fichier(s) Drive caché(s) sont présents dans la sauvegarde. Les renvoyer vers Google Drive appDataFolder ?')) {
+          await ensureGoogleAccessToken(false);
+          for (const entry of driveFiles) {
+            const zipItem = zip.file(entry.path);
+            const blob = await zipItem.async('blob');
+            await uploadBlobToDriveAppData(blob, entry.name || entry.path.split('/').pop(), 'application/json');
+          }
+        }
+
+        alert('Restauration terminée. La page va être rechargée.');
+        location.reload();
       } catch (error) {
-        console.info('Reconnexion silencieuse Google Drive non disponible :', error);
-        updateDriveButtons();
+        console.error(error);
+        alert('Impossible de restaurer la sauvegarde : ' + (error?.message || 'erreur inconnue'));
+      } finally {
+        hideBlockingProgress();
+      }
+    }
+
+    async function uploadBlobToDriveAppData(blob, name, mimeType = 'application/json') {
+      const token = await ensureGoogleAccessToken(false);
+      const metadata = { name, parents: ['appDataFolder'] };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', blob, name);
+      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+        body: form
+      });
+      if (!res.ok) throw new Error('Upload Drive impossible: ' + res.status);
+      return await res.json();
+    }
+
+    async function waitForGoogleApi(timeoutMs = 10000) {
+      const startedAt = Date.now();
+      while ((!window.gapi || !window.google?.accounts?.oauth2) && Date.now() - startedAt < timeoutMs) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      if (!window.gapi || !window.google?.accounts?.oauth2) {
+        throw new Error('Bibliothèques Google non chargées.');
       }
     }
 
     async function initGoogleDrive() {
       try {
-        await new Promise((resolve) => gapi.load('client', resolve));
-
+        await waitForGoogleApi();
+        await new Promise((resolve, reject) => {
+          gapi.load('client', {
+            callback: resolve,
+            onerror: reject
+          });
+        });
         await gapi.client.init({
           apiKey: GOOGLE_API_KEY,
           discoveryDocs: [DRIVE_DISCOVERY_DOC]
@@ -1402,74 +1283,226 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
         googleTokenClient = google.accounts.oauth2.initTokenClient({
           client_id: GOOGLE_CLIENT_ID,
           scope: DRIVE_SCOPES,
-          callback: async (resp) => {
-            const pending = googleRequestInFlight;
+          prompt: '',
+          callback: tokenResponse => {
             googleRequestInFlight = null;
-
-            try {
-              if (resp?.error) {
-                throw new Error(resp.error);
-              }
-
-              applyGoogleTokenResponse(resp);
-              pending?.resolve(resp);
-            } catch (error) {
-              pending?.reject(error);
+            if (tokenResponse?.access_token) {
+              googleAccessToken = tokenResponse.access_token;
+              googleTokenExpiresAt = Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
+              gapi.client.setToken({ access_token: googleAccessToken });
+              markDriveConnected();
+              updateDriveButtons();
+              broadcastDriveConnected();
             }
+          },
+          error_callback: error => {
+            googleRequestInFlight = null;
+            console.warn('Google token refusé.', error);
+            updateDriveButtons();
           }
         });
 
         googleDriveReady = true;
         updateDriveButtons();
       } catch (error) {
-        console.error('Erreur lors de l’initialisation Google Drive :', error);
+        console.error(error);
         googleDriveReady = false;
         updateDriveButtons();
+        setMessage('Google Drive indisponible pour le moment. La connexion au portail reste possible.', 'warning');
       }
+    }
+
+    async function ensureGoogleAccessToken(interactive = true) {
+      if (isTokenFresh()) return googleAccessToken;
+      if (!googleTokenClient) throw new Error('Google Drive n’est pas initialisé.');
+      if (googleRequestInFlight) return googleRequestInFlight;
+
+      googleRequestInFlight = new Promise((resolve, reject) => {
+        const previousCallback = googleTokenClient.callback;
+        googleTokenClient.callback = tokenResponse => {
+          googleTokenClient.callback = previousCallback;
+          googleRequestInFlight = null;
+
+          if (tokenResponse?.access_token) {
+            googleAccessToken = tokenResponse.access_token;
+            googleTokenExpiresAt = Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
+            gapi.client.setToken({ access_token: googleAccessToken });
+            markDriveConnected();
+            updateDriveButtons();
+            broadcastDriveConnected();
+            resolve(googleAccessToken);
+          } else {
+            updateDriveButtons();
+            reject(new Error('Autorisation Google Drive refusée.'));
+          }
+        };
+
+        try {
+          googleTokenClient.requestAccessToken({ prompt: interactive ? 'consent' : '' });
+        } catch (error) {
+          googleTokenClient.callback = previousCallback;
+          googleRequestInFlight = null;
+          reject(error);
+        }
+      });
+
+      return googleRequestInFlight;
     }
 
     async function connectGoogleDrive() {
       try {
-        setMessage('');
-        await ensureFreshGoogleToken(true);
+        await ensureGoogleAccessToken(true);
+        setMessage('Google Drive connecté.', 'success');
       } catch (error) {
         console.error(error);
-        setMessage('Connexion Google Drive refusée ou interrompue.', 'warning');
+        setMessage('Connexion Google Drive refusée ou impossible.', 'error');
       }
     }
 
-    function disconnectGoogleDrive(clearFlag = true) {
-      const tokenToRevoke = googleAccessToken;
+    async function maybeRestoreDriveConnection() {
+      if (silentReconnectAttempted || isTokenFresh() || !googleTokenClient || !wasDrivePreviouslyConnected()) return;
+      silentReconnectAttempted = true;
+      try {
+        await ensureGoogleAccessToken(false);
+      } catch (error) {
+        console.warn('Reconnexion silencieuse Drive impossible.', error);
+        updateDriveButtons();
+      }
+    }
 
+    function disconnectGoogleDrive(clearRemembered = true) {
+      if (googleAccessToken && window.google?.accounts?.oauth2) {
+        try { google.accounts.oauth2.revoke(googleAccessToken); } catch (error) { console.warn(error); }
+      }
       googleAccessToken = null;
       googleTokenExpiresAt = 0;
-
-      if (window.gapi?.client) {
-        gapi.client.setToken(null);
-      }
-
-      if (clearFlag) {
-        clearDriveConnectionFlag();
-      }
-
-      if (tokenToRevoke && window.google?.accounts?.oauth2?.revoke) {
-        try {
-          google.accounts.oauth2.revoke(tokenToRevoke, () => { });
-        } catch (error) {
-          console.warn('Révocation Google Drive impossible :', error);
-        }
-      }
-
+      googleRequestInFlight = null;
+      if (window.gapi?.client) gapi.client.setToken(null);
+      if (clearRemembered) clearDriveConnectionFlag();
       updateDriveButtons();
       broadcastDriveDisconnected();
     }
 
+    function broadcastDriveConnected() {
+      const payload = {
+        type: 'BASTCOMPTA_DRIVE_CONNECTED',
+        accessToken: googleAccessToken,
+        expiresAt: googleTokenExpiresAt
+      };
+      [devisFrame, comptaFrame, chantierFrame].forEach(frame => postToFrame(frame, payload));
+    }
+
+    function broadcastDriveDisconnected() {
+      const payload = { type: 'BASTCOMPTA_DRIVE_DISCONNECTED' };
+      [devisFrame, comptaFrame, chantierFrame].forEach(frame => postToFrame(frame, payload));
+    }
+
+    function bindIframeMessaging() {
+      [devisFrame, comptaFrame, chantierFrame].forEach(frame => {
+        frame?.addEventListener('load', () => {
+          if (isTokenFresh()) broadcastDriveConnected();
+          else broadcastDriveDisconnected();
+        });
+      });
+    }
+
     window.addEventListener('message', event => {
       if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'BASTCOMPTA_DRIVE_REQUEST_TOKEN') {
+        ensureGoogleAccessToken(true)
+          .then(() => broadcastDriveConnected())
+          .catch(() => broadcastDriveDisconnected());
+      }
+      if (event.data?.type === 'BASTCOMPTA_DRIVE_DISCONNECT') {
+        disconnectGoogleDrive(true);
+      }
       if (event.data?.type === 'BASTCOMPTA_SEND_INVOICE_TO_ACCOUNTING') {
         sendInvoiceToAccounting();
       }
     });
+
+    async function createUserDocument(user) {
+      if (!user?.uid) return null;
+
+      const userRef = doc(db, 'users', user.uid);
+      const snap = await getDoc(userRef);
+
+      if (snap.exists()) {
+        return snap.data();
+      }
+
+      const now = new Date();
+      const trialEnd = new Date(now);
+      trialEnd.setDate(now.getDate() + 14);
+
+      const userData = {
+        email: user.email || '',
+        createdAt: now.toISOString(),
+        subscriptionStatus: 'trial',
+        subscriptionActive: true,
+        trialStartedAt: now.toISOString(),
+        trialEndsAt: trialEnd.toISOString(),
+        plan: 'monthly',
+        monthlyPrice: 4.99,
+        currency: 'EUR',
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        updatedAt: now.toISOString()
+      };
+
+      await setDoc(userRef, userData);
+      return userData;
+    }
+
+    async function checkSubscription(user) {
+      if (!user?.uid) {
+        return { allowed: false, reason: 'not_connected' };
+      }
+
+      const userRef = doc(db, 'users', user.uid);
+      const snap = await getDoc(userRef);
+
+      if (!snap.exists()) {
+        return { allowed: false, reason: 'no_user_document' };
+      }
+
+      const data = snap.data() || {};
+
+      if (data.subscriptionStatus === 'active' && data.subscriptionActive === true) {
+        return { allowed: true, status: 'active', data };
+      }
+
+      if (data.subscriptionStatus === 'trial' && data.subscriptionActive === true) {
+        const now = new Date();
+        const trialEndsAt = new Date(data.trialEndsAt || 0);
+
+        if (Number.isNaN(trialEndsAt.getTime()) || now > trialEndsAt) {
+          await updateDoc(userRef, {
+            subscriptionStatus: 'expired',
+            subscriptionActive: false,
+            updatedAt: now.toISOString()
+          }).catch(error => console.warn('Impossible de mettre à jour le statut expiré.', error));
+
+          return { allowed: false, reason: 'trial_expired', data };
+        }
+
+        return { allowed: true, status: 'trial', data };
+      }
+
+      return { allowed: false, reason: data.subscriptionStatus || 'inactive', data };
+    }
+
+    function subscriptionMessageFromResult(result) {
+      if (result?.reason === 'trial_expired') {
+        return 'Votre période d’essai de 14 jours est expirée. Merci de vous abonner pour continuer à utiliser BastCompta.';
+      }
+
+      if (result?.reason === 'inactive' || result?.reason === 'expired') {
+        return 'Votre abonnement n’est pas actif. Merci de vous abonner pour continuer à utiliser BastCompta.';
+      }
+
+      return 'Accès BastCompta non autorisé pour ce compte.';
+    }
 
     authTabs.forEach(btn => {
       btn.addEventListener('click', () => switchAuthTab(btn.dataset.authTab));
@@ -1504,6 +1537,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
+    const db = getFirestore(app);
     await setPersistence(auth, browserLocalPersistence);
     await initGoogleDrive();
     bindIframeMessaging();
@@ -1691,8 +1725,31 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/fireba
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
-        await user.reload().catch(() => { });
-        showPortal(auth.currentUser || user);
+        try {
+          await user.reload().catch(() => { });
+          const freshUser = auth.currentUser || user;
+
+          await createUserDocument(freshUser);
+          const subscription = await checkSubscription(freshUser);
+
+          if (!subscription.allowed) {
+            revokePortalModuleAccess();
+            unloadProtectedFrames();
+            portalScreen.classList.add('hidden');
+            authScreen.classList.remove('hidden');
+            setMessage(subscriptionMessageFromResult(subscription), 'warning');
+            return;
+          }
+
+          showPortal(freshUser);
+        } catch (error) {
+          console.error('Vérification abonnement impossible :', error);
+          revokePortalModuleAccess();
+          unloadProtectedFrames();
+          portalScreen.classList.add('hidden');
+          authScreen.classList.remove('hidden');
+          setMessage('Impossible de vérifier votre abonnement. Vérifiez votre connexion puis réessayez.', 'error');
+        }
       } else {
         disconnectGoogleDrive(false);
         showAuth();
