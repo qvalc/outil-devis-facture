@@ -162,11 +162,11 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-bottom: -10px;
+    margin-bottom: 24px;
 }
 
 .auth-logo img {
-    width: 320px;
+    width: 250px;
     max-width: 100%;
     height: auto;
     object-fit: contain;
