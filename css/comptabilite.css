@@ -551,317 +551,126 @@ textarea {
     }
 }
 
-
-
-/* =========================================================
-   STYLE MODERNE - version proche de l'aperçu visuel
-   Ajouté par ChatGPT : uniformisation boutons, onglets, barres.
-   ========================================================= */
-
-:root {
-  --bc-bg: #f5f8fc;
-  --bc-surface: rgba(255, 255, 255, 0.96);
-  --bc-surface-soft: #f8fafc;
-  --bc-border: #e2e8f0;
-  --bc-border-strong: #cbd5e1;
-  --bc-text: #0f172a;
-  --bc-muted: #64748b;
-  --bc-primary: #1d4ed8;
-  --bc-primary-2: #2563eb;
-  --bc-primary-soft: #eef4ff;
-  --bc-primary-line: #bfd4ff;
-  --bc-danger: #b91c1c;
-  --bc-shadow-card: 0 16px 40px rgba(15, 23, 42, 0.06);
-  --bc-shadow-btn: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --bc-radius-card: 24px;
-  --bc-radius-btn: 14px;
-}
-
-body {
-  background:
-    radial-gradient(circle at top left, rgba(29, 78, 216, 0.08), transparent 28%),
-    linear-gradient(180deg, #f8fbff 0%, var(--bc-bg) 100%) !important;
-  color: var(--bc-text) !important;
-}
-
-.app {
-  max-width: 1540px !important;
-  padding: 20px !important;
-}
-
-/* Grande carte haute comme dans l'aperçu */
-.topbar,
-.portal-topbar {
-  background: var(--bc-surface) !important;
-  border: 1px solid var(--bc-border) !important;
-  border-radius: var(--bc-radius-card) !important;
-  box-shadow: var(--bc-shadow-card) !important;
-  padding: 28px 30px !important;
-  margin-bottom: 20px !important;
-  align-items: center !important;
-}
-
-.title-wrap h1,
-.title-wrap h2 {
-  font-size: 32px !important;
-  line-height: 1.15 !important;
-  letter-spacing: -0.035em !important;
-  color: var(--bc-text) !important;
-}
-
-.title-wrap p,
-.hint,
-.toolbar-subtitle,
-.metric-sub {
-  color: var(--bc-muted) !important;
-}
-
-/* Boutons modernes */
+/* === BastCompta - boutons modernes, sobres et cohérents === */
 button,
-.file-label,
-.auth-tab,
-.main-tab,
-.tab {
-  min-height: 44px;
-  border: 1px solid var(--bc-border) !important;
-  background: #fff !important;
-  color: var(--bc-text) !important;
-  padding: 0 16px !important;
-  border-radius: var(--bc-radius-btn) !important;
-  font-size: 14px !important;
-  font-weight: 700 !important;
-  line-height: 1 !important;
-  box-shadow: var(--bc-shadow-btn) !important;
-  transition: background .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease !important;
+.file-label {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: 1px solid #dbe4f0;
+    background: #ffffff;
+    color: #142033;
+    padding: 0 16px;
+    border-radius: 13px;
+    cursor: pointer;
+    font-weight: 750;
+    font-size: 14px;
+    line-height: 1;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 18px rgba(15, 23, 42, 0.04);
+    transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 
 button:hover,
-.file-label:hover,
-.auth-tab:hover,
-.main-tab:hover,
-.tab:hover {
-  background: var(--bc-surface-soft) !important;
-  border-color: var(--bc-border-strong) !important;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08) !important;
-  transform: translateY(-1px);
+.file-label:hover {
+    background: #f8fafc;
+    border-color: #cbd7e6;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06), 0 12px 24px rgba(15, 23, 42, 0.05);
+    transform: translateY(-1px);
 }
 
 button:active,
-.file-label:active,
-.auth-tab:active,
-.main-tab:active,
-.tab:active {
-  transform: translateY(0);
-  box-shadow: var(--bc-shadow-btn) !important;
+.file-label:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 button.primary,
 .primary,
-.split-button-main {
-  background: linear-gradient(135deg, var(--bc-primary-2), var(--bc-primary)) !important;
-  border-color: var(--bc-primary) !important;
-  color: #fff !important;
-  box-shadow: 0 10px 24px rgba(29, 78, 216, 0.24) !important;
+.split-button-main.primary {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+    border-color: #1d4ed8 !important;
+    color: #ffffff !important;
+    box-shadow: 0 10px 24px rgba(29, 78, 216, 0.24) !important;
 }
 
 button.primary:hover,
 .primary:hover,
-.split-button-main:hover {
-  background: linear-gradient(135deg, #1d4ed8, #1e40af) !important;
-  border-color: #1e40af !important;
-  box-shadow: 0 14px 30px rgba(29, 78, 216, 0.30) !important;
+.split-button-main.primary:hover {
+    background: linear-gradient(135deg, #1d4ed8, #1e40af) !important;
+    box-shadow: 0 14px 30px rgba(29, 78, 216, 0.30) !important;
 }
 
-/* Bouton danger plus propre */
 button.danger,
 .danger {
-  background: #fff5f5 !important;
-  border-color: #fecaca !important;
-  color: var(--bc-danger) !important;
+    background: #fff5f5 !important;
+    border-color: #fecaca !important;
+    color: #b91c1c !important;
 }
 
-/* Onglets internes façon aperçu : ligne basse, pas de grosses pilules */
+button.danger:hover,
+.danger:hover {
+    background: #fee2e2 !important;
+    border-color: #fca5a5 !important;
+}
+
 .tabs {
-  background: transparent !important;
-  border-bottom: 1px solid var(--bc-border) !important;
-  padding: 0 !important;
-  gap: 24px !important;
-  margin-bottom: 26px !important;
+    gap: 24px !important;
+    border-bottom: 1px solid #e5edf6;
+    padding: 0 18px;
+    background: #ffffff;
 }
 
-.tabs .tab,
 .tab {
-  border: none !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  color: var(--bc-muted) !important;
-  box-shadow: none !important;
-  padding: 0 2px 14px !important;
-  min-height: 38px !important;
-  position: relative;
+    min-height: 54px;
+    padding: 0 2px !important;
+    border: none !important;
+    border-bottom: 3px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #172033 !important;
+    box-shadow: none !important;
+    font-weight: 650 !important;
 }
 
-.tabs .tab:hover,
 .tab:hover {
-  color: var(--bc-primary) !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  transform: none !important;
+    color: #1d4ed8 !important;
+    transform: none !important;
 }
 
-.tabs .tab.active,
 .tab.active {
-  background: transparent !important;
-  color: var(--bc-primary) !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
+    background: transparent !important;
+    color: #0b4ee6 !important;
+    border-bottom-color: #2563eb !important;
 }
 
-.tabs .tab.active::after,
-.tab.active::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--bc-primary);
-}
-
-/* Onglets principaux du portail : pilules propres */
-.main-tabs {
-  gap: 12px !important;
-  margin-bottom: 18px !important;
-}
-
-.main-tab {
-  min-height: 52px !important;
-  padding: 0 20px !important;
-}
-
-.main-tab.active {
-  background: var(--bc-primary-soft) !important;
-  color: var(--bc-primary) !important;
-  border-color: var(--bc-primary-line) !important;
-}
-
-/* Cartes et barres d'actions */
-.card,
 .toolbar,
-.side-panel,
-.main-panel,
-.hero,
+.card,
 .form-card,
 .comm-panel,
-.conditions-screen,
-.sheet,
-.workspace,
-.drive-modal-card {
-  border-color: var(--bc-border) !important;
-  border-radius: var(--bc-radius-card) !important;
-  box-shadow: var(--bc-shadow-card) !important;
-}
-
-.toolbar {
-  background: var(--bc-surface) !important;
-  padding: 20px 22px !important;
-  align-items: center !important;
-}
-
-.toolbar-actions,
-.actions,
-.inline-actions,
-.toolbar-group {
-  gap: 10px !important;
-}
-
-.toolbar-group.secondary button,
-.toolbar-group.primary button,
-.toolbar-group.more button,
-.button-icon,
-.split-button-toggle,
-.split-button-main {
-  min-height: 44px !important;
+.side-panel,
+.main-panel,
+.notice {
+    border-color: #dfe8f3 !important;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05) !important;
 }
 
 .button-icon,
 .split-button-toggle,
 .settings-icon-btn {
-  width: 44px !important;
-  min-width: 44px !important;
-  padding: 0 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-.split-button {
-  display: inline-flex !important;
-  align-items: stretch !important;
+    min-width: 44px;
+    width: 44px;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
 }
 
 .split-button-main {
-  border-top-right-radius: 0 !important;
-  border-bottom-right-radius: 0 !important;
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
 }
 
 .split-button-toggle {
-  border-left: 1px solid rgba(255,255,255,.25) !important;
-  border-top-left-radius: 0 !important;
-  border-bottom-left-radius: 0 !important;
-  background: linear-gradient(135deg, var(--bc-primary-2), var(--bc-primary)) !important;
-  color: #fff !important;
-}
-
-/* Menus déroulants */
-.dropdown-menu,
-.menu-panel,
-.settings-dropdown {
-  border-color: var(--bc-border) !important;
-  border-radius: 16px !important;
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.14) !important;
-  padding: 8px !important;
-}
-
-.dropdown-menu button,
-.menu-panel button,
-.settings-dropdown button {
-  box-shadow: none !important;
-  justify-content: flex-start !important;
-}
-
-/* Champs, pour harmoniser avec les boutons */
-input,
-select,
-textarea {
-  border-color: var(--bc-border) !important;
-  border-radius: 12px !important;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: #9ec0ff !important;
-  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.08) !important;
-}
-
-/* Petits boutons d'action de tableau */
-button.small,
-.invoice-preview-btn,
-.doc-table button,
-table button {
-  min-height: 36px !important;
-  padding: 0 12px !important;
-  border-radius: 12px !important;
-  box-shadow: var(--bc-shadow-btn) !important;
-}
-
-/* Mobile */
-@media (max-width: 800px) {
-  .app { padding: 12px !important; }
-  .topbar, .portal-topbar { padding: 20px !important; border-radius: 20px !important; }
-  .title-wrap h1, .title-wrap h2 { font-size: 26px !important; }
-  .tabs { gap: 18px !important; overflow-x: auto; flex-wrap: nowrap !important; }
-  button, .file-label, .main-tab, .tab { white-space: nowrap; }
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
 }
