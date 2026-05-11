@@ -1437,7 +1437,47 @@ window.addEventListener('message', event => {
   if (event.data?.type === 'BASTCOMPTA_SEND_INVOICE_TO_ACCOUNTING') {
     sendInvoiceToAccounting();
   }
+
+  if (event.data?.type === 'BASTCOMPTA_OPEN_DEVIS_DOCUMENT') {
+    openDevisDocumentFromSuiviClient(event.data.docKey || event.data.pageKey || 'invoice');
+  }
 });
+
+async function openDevisDocumentFromSuiviClient(docKey = 'invoice') {
+  const pageKey = ['quote', 'invoice', 'reminder'].includes(docKey) ? docKey : 'invoice';
+
+  switchMainTab('devis');
+
+  const targetSrc = devisFrame?.dataset?.src || '';
+  if (devisFrame && targetSrc && (!devisFrame.getAttribute('src') || devisFrame.getAttribute('src') === 'about:blank')) {
+    devisFrame.setAttribute('src', targetSrc);
+  }
+
+  await waitForFrameLoad(devisFrame, 8000);
+
+  let sent = false;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const setPageApi = getFrameApi(devisFrame, 'goToPage') || getFrameApi(devisFrame, 'setActivePage');
+    if (setPageApi) {
+      try {
+        setPageApi(pageKey);
+        sent = true;
+        break;
+      } catch (error) {
+        console.warn('Ouverture directe du document impossible.', error);
+      }
+    }
+
+    postToFrame(devisFrame, { type: 'BASTCOMPTA_SET_ACTIVE_PAGE', pageKey });
+    sent = true;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  setTimeout(() => resizeIframeToContent(devisFrame), 150);
+  return sent;
+}
+
+window.openDevisDocumentFromSuiviClient = openDevisDocumentFromSuiviClient;
 
 async function createUserDocument(user) {
   if (!user?.uid) return null;
@@ -1512,6 +1552,17 @@ async function checkSubscription(user) {
       now > subscriptionEndsAt
     ) {
 
+      await updateDoc(userRef, {
+        subscriptionStatus: 'expired',
+        subscriptionActive: false,
+        updatedAt: now.toISOString()
+      }).catch(error =>
+        console.warn(
+          'Impossible de mettre à jour le statut abonnement expiré.',
+          error
+        )
+      );
+
       return {
         allowed: false,
         reason: 'subscription_expired',
@@ -1531,6 +1582,12 @@ async function checkSubscription(user) {
     const trialEndsAt = new Date(data.trialEndsAt || 0);
 
     if (Number.isNaN(trialEndsAt.getTime()) || now > trialEndsAt) {
+      await updateDoc(userRef, {
+        subscriptionStatus: 'expired',
+        subscriptionActive: false,
+        updatedAt: now.toISOString()
+      }).catch(error => console.warn('Impossible de mettre à jour le statut expiré.', error));
+
       return { allowed: false, reason: 'trial_expired', data };
     }
 
