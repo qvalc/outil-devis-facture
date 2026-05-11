@@ -2012,15 +2012,28 @@ Communication : ${data.communication.formatted || '+++...+++'}`;
     }
 
     async function loadDriveJsonFileById(fileId, showAlert = true) {
+      if (!fileId) {
+        if (showAlert) alert("Aucun fichier sélectionné.");
+        return null;
+      }
+
       if (!googleAccessToken) {
         if (showAlert) alert("Connecte Google Drive depuis le portail BastCompta.");
         return null;
       }
 
       try {
-        const file = googleDriveFiles.find(item => item.id === fileId);
+        const file = googleDriveFiles.find(item => item.id === fileId) || driveFileIndex[fileId] || null;
         const parsed = await fetchDriveFileParsed(fileId);
-        const docType = normalizeDocTypeFromName(file?.name || '');
+
+        // Dans le suivi client, les documents viennent parfois de l'index CRM (driveFileIndex)
+        // et pas directement de googleDriveFiles. On détecte donc le type par ordre de fiabilité :
+        // 1) contenu du JSON, 2) index CRM, 3) nom du fichier.
+        let docType = '';
+        if (parsed && parsed.quote) docType = 'quote';
+        else if (parsed && parsed.invoice) docType = 'invoice';
+        else if (parsed && parsed.reminder) docType = 'reminder';
+        else docType = driveFileIndex[fileId]?.type || normalizeDocTypeFromName(file?.name || '');
 
         if (docType === 'quote' && parsed.quote) {
           data.quote = mergeDeep(structuredClone(defaultData.quote), parsed.quote);
@@ -2032,6 +2045,7 @@ Communication : ${data.communication.formatted || '+++...+++'}`;
           data.reminder = mergeDeep(structuredClone(defaultData.reminder), parsed.reminder);
           activePage = 'reminder';
         } else {
+          console.warn('Document Drive non reconnu', { fileId, file, parsed });
           throw new Error('Type de document inconnu.');
         }
 
@@ -2039,6 +2053,8 @@ Communication : ${data.communication.formatted || '+++...+++'}`;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         selectedDriveFileId = fileId;
         render();
+
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
 
         if (showAlert) {
           alert(`Import réussi : ${file ? file.name : 'fichier sélectionné'}`);
@@ -2048,7 +2064,7 @@ Communication : ${data.communication.formatted || '+++...+++'}`;
       } catch (error) {
         console.error(error);
         if (showAlert) {
-          alert("Échec de l'import depuis Google Drive.");
+          alert("Échec de l'import depuis Google Drive. Ouvre la console pour voir le détail.");
         }
         return null;
       }
