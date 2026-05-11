@@ -1512,17 +1512,6 @@ async function checkSubscription(user) {
       now > subscriptionEndsAt
     ) {
 
-      await updateDoc(userRef, {
-        subscriptionStatus: 'expired',
-        subscriptionActive: false,
-        updatedAt: now.toISOString()
-      }).catch(error =>
-        console.warn(
-          'Impossible de mettre à jour le statut abonnement expiré.',
-          error
-        )
-      );
-
       return {
         allowed: false,
         reason: 'subscription_expired',
@@ -1542,12 +1531,6 @@ async function checkSubscription(user) {
     const trialEndsAt = new Date(data.trialEndsAt || 0);
 
     if (Number.isNaN(trialEndsAt.getTime()) || now > trialEndsAt) {
-      await updateDoc(userRef, {
-        subscriptionStatus: 'expired',
-        subscriptionActive: false,
-        updatedAt: now.toISOString()
-      }).catch(error => console.warn('Impossible de mettre à jour le statut expiré.', error));
-
       return { allowed: false, reason: 'trial_expired', data };
     }
 
