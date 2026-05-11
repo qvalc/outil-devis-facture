@@ -45,6 +45,8 @@ let googleTokenExpiresAt = 0;
 let googleDriveReady = false;
 let googleRequestInFlight = null;
 let silentReconnectAttempted = false;
+let hiddenDriveFilesCache = [];
+let hiddenDriveActiveCategory = 'all';
 
 const authScreen = document.getElementById('authScreen');
 const portalScreen = document.getElementById('portalScreen');
@@ -66,6 +68,7 @@ const closeHiddenDriveBtn = document.getElementById('closeHiddenDriveBtn');
 const refreshHiddenDriveBtn = document.getElementById('refreshHiddenDriveBtn');
 const hiddenDriveStatus = document.getElementById('hiddenDriveStatus');
 const hiddenDriveList = document.getElementById('hiddenDriveList');
+const hiddenDriveTabs = document.getElementById('hiddenDriveTabs');
 const fullBackupBtn = document.getElementById('fullBackupBtn');
 const fullRestoreBtn = document.getElementById('fullRestoreBtn');
 const fullRestoreInput = document.getElementById('fullRestoreInput');
@@ -516,6 +519,171 @@ function sanitizePathPart(value, fallback = 'Sans nom') {
     .slice(0, 90) || fallback;
 }
 
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+const HIDDEN_DRIVE_CATEGORIES = [
+  { key: 'all', label: 'Tous' },
+  { key: 'devis', label: 'Devis' },
+  { key: 'factures', label: 'Factures' },
+  { key: 'rappels', label: 'Rappels' },
+  { key: 'comptabilite', label: 'Comptabilité' },
+  { key: 'clients', label: 'Clients / chantiers' },
+  { key: 'impots', label: 'Impôts' },
+  { key: 'sauvegardes', label: 'Sauvegardes' },
+  { key: 'autres', label: 'Autres' }
+];
+
+function detectHiddenDriveCategory(file = {}) {
+  const name = normalizeSearchText(file.name || '');
+  const mime = normalizeSearchText(file.mimeType || '');
+
+  if (name.endsWith(' zip') || name.includes(' sauvegarde ') || name.includes(' backup ') || mime.includes(' zip')) return 'sauvegardes';
+  if (name.startsWith('devis ') || name.includes(' devis ') || name.includes(' quote ')) return 'devis';
+  if (name.startsWith('facture ') || name.includes(' facture ') || name.includes(' invoice ')) return 'factures';
+  if (name.startsWith('rappel ') || name.includes(' rappel ') || name.includes(' reminder ')) return 'rappels';
+  if (name.includes('comptabilite') || name.includes(' compta ') || name.includes(' achat ') || name.includes(' achats ') || name.includes(' vente ') || name.includes(' ventes ') || name.includes(' frais ')) return 'comptabilite';
+  if (name.includes('suivi client') || name.includes('suivi-client') || name.includes(' chantier ') || name.includes(' chantiers ') || name.includes(' client ') || name.includes(' crm ')) return 'clients';
+  if (name.includes('impot') || name.includes('impots') || name.includes(' ipp ') || name.includes(' fiscal ') || name.includes(' taxe ') || name.includes(' taxes ')) return 'impots';
+  return 'autres';
+}
+
+function getHiddenDriveCategoryLabel(categoryKey) {
+  return HIDDEN_DRIVE_CATEGORIES.find(category => category.key === categoryKey)?.label || 'Autres';
+}
+
+function hiddenDriveCategoryCounts(files = []) {
+  const counts = Object.fromEntries(HIDDEN_DRIVE_CATEGORIES.map(category => [category.key, 0]));
+  counts.all = files.length;
+  files.forEach(file => {
+    const category = detectHiddenDriveCategory(file);
+    counts[category] = (counts[category] || 0) + 1;
+  });
+  return counts;
+}
+
+function updateHiddenDriveTabs(files = []) {
+  if (!hiddenDriveTabs) return;
+  const counts = hiddenDriveCategoryCounts(files);
+  hiddenDriveTabs.querySelectorAll('[data-drive-category]').forEach(button => {
+    const category = button.dataset.driveCategory || 'all';
+    button.classList.toggle('active', category === hiddenDriveActiveCategory);
+    const label = getHiddenDriveCategoryLabel(category);
+    const count = counts[category] || 0;
+    button.innerHTML = '<span>' + escapeHtml(label) + '</span><strong>' + count + '</strong>';
+  });
+}
+
+function filteredHiddenDriveFiles() {
+  if (hiddenDriveActiveCategory === 'all') return hiddenDriveFilesCache;
+  return hiddenDriveFilesCache.filter(file => detectHiddenDriveCategory(file) === hiddenDriveActiveCategory);
+}
+
+function renderHiddenDriveList() {
+  if (!hiddenDriveStatus || !hiddenDriveList) return;
+  updateHiddenDriveTabs(hiddenDriveFilesCache);
+
+  const files = filteredHiddenDriveFiles();
+  const categoryLabel = getHiddenDriveCategoryLabel(hiddenDriveActiveCategory);
+
+  if (!hiddenDriveFilesCache.length) {
+    hiddenDriveStatus.textContent = 'Aucun fichier caché trouvé dans appDataFolder.';
+    hiddenDriveList.innerHTML = '';
+    return;
+  }
+
+  if (!files.length) {
+    hiddenDriveStatus.textContent = 'Aucun fichier dans l’onglet « ' + categoryLabel + ' ». Total Drive caché : ' + hiddenDriveFilesCache.length + ' fichier(s).';
+    hiddenDriveList.innerHTML = '<div class="hidden-drive-empty">Aucun fichier dans cette catégorie.</div>';
+    return;
+  }
+
+  hiddenDriveStatus.textContent = files.length + ' fichier(s) affiché(s) dans « ' + categoryLabel + ' » · Total Drive caché : ' + hiddenDriveFilesCache.length + '.';
+  hiddenDriveList.innerHTML = files.map(file => {
+    const name = escapeHtml(file.name || 'Sans nom');
+    const category = detectHiddenDriveCategory(file);
+    const categoryLabel = escapeHtml(getHiddenDriveCategoryLabel(category));
+    const meta = [
+      file.mimeType || '',
+      file.size ? (Math.round(Number(file.size) / 1024) + ' Ko') : '',
+      file.modifiedTime ? ('modifié le ' + new Date(file.modifiedTime).toLocaleString('fr-BE')) : ''
+    ].filter(Boolean).map(escapeHtml).join(' · ');
+
+    return '<div class="hidden-drive-item" data-drive-file-category="' + category + '">'
+      + '<div><div class="hidden-drive-name">' + name + '</div><div class="hidden-drive-meta"><span class="hidden-drive-category-badge">' + categoryLabel + '</span>' + (meta ? '<span>' + meta + '</span>' : '') + '</div></div>'
+      + '<div class="hidden-drive-actions">'
+      + (isLikelyPreviewableDriveDocument(file) ? '<button class="small primary" type="button" data-preview-drive-file="' + escapeHtml(file.id) + '">Aperçu PDF</button>' : '')
+      + '<button class="small" type="button" data-download-drive-file="' + escapeHtml(file.id) + '">Télécharger</button>'
+      + '<button class="small danger" type="button" data-delete-drive-file="' + escapeHtml(file.id) + '" data-drive-file-name="' + name + '">Supprimer</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  bindHiddenDriveFileButtons();
+}
+
+function bindHiddenDriveFileButtons() {
+  if (!hiddenDriveList) return;
+
+  hiddenDriveList.querySelectorAll('[data-preview-drive-file]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const file = hiddenDriveFilesCache.find(item => item.id === button.dataset.previewDriveFile);
+      if (!file) return;
+      await previewHiddenDriveDocumentPdf(file, button);
+    });
+  });
+
+  hiddenDriveList.querySelectorAll('[data-download-drive-file]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const file = hiddenDriveFilesCache.find(item => item.id === button.dataset.downloadDriveFile);
+      if (!file) return;
+      try {
+        button.disabled = true;
+        button.textContent = 'Téléchargement…';
+        const blob = await downloadDriveFileBlob(file);
+        downloadBlob(blob, file.name || 'fichier-drive-cache');
+      } catch (error) {
+        console.error(error);
+        alert('Impossible de télécharger ce fichier Drive caché.');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Télécharger';
+      }
+    });
+  });
+
+  hiddenDriveList.querySelectorAll('[data-delete-drive-file]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const file = hiddenDriveFilesCache.find(item => item.id === button.dataset.deleteDriveFile);
+      if (!file) return;
+      const label = file.name || 'ce fichier';
+      const confirmed = confirm('Supprimer définitivement du Drive caché : "' + label + '" ?\n\nCette action ne peut pas être annulée. Pense à télécharger une sauvegarde avant de supprimer.');
+      if (!confirmed) return;
+
+      try {
+        button.disabled = true;
+        button.textContent = 'Suppression…';
+        await deleteHiddenDriveFile(file);
+        hiddenDriveStatus.textContent = 'Fichier supprimé : ' + label;
+        await refreshHiddenDriveList();
+      } catch (error) {
+        console.error(error);
+        alert('Impossible de supprimer ce fichier Drive caché. Vérifie la connexion Google Drive puis réessaie.');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Supprimer';
+      }
+    });
+  });
+}
+
 function normalizeSearchText(value) {
   return String(value || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -899,77 +1067,8 @@ async function refreshHiddenDriveList() {
 
   try {
     await ensureGoogleAccessToken(false);
-    const files = await listDriveAppDataFiles();
-    if (!files.length) {
-      hiddenDriveStatus.textContent = 'Aucun fichier caché trouvé dans appDataFolder.';
-      return;
-    }
-
-    hiddenDriveStatus.textContent = files.length + ' fichier(s) trouvé(s).';
-    hiddenDriveList.innerHTML = files.map(file => {
-      const name = String(file.name || 'Sans nom').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const meta = [file.mimeType || '', file.size ? (Math.round(Number(file.size) / 1024) + ' Ko') : '', file.modifiedTime ? ('modifié le ' + new Date(file.modifiedTime).toLocaleString('fr-BE')) : ''].filter(Boolean).join(' · ');
-      return '<div class="hidden-drive-item">'
-        + '<div><div class="hidden-drive-name">' + name + '</div><div class="hidden-drive-meta">' + meta + '</div></div>'
-        + '<div class="hidden-drive-actions">'
-        + (isLikelyPreviewableDriveDocument(file) ? '<button class="small primary" type="button" data-preview-drive-file="' + file.id + '">Aperçu PDF</button>' : '')
-        + '<button class="small" type="button" data-download-drive-file="' + file.id + '">Télécharger</button>'
-        + '<button class="small danger" type="button" data-delete-drive-file="' + file.id + '" data-drive-file-name="' + name + '">Supprimer</button>'
-        + '</div>'
-        + '</div>';
-    })
-      .join('');
-
-    hiddenDriveList.querySelectorAll('[data-preview-drive-file]').forEach(button => {
-      button.addEventListener('click', async () => {
-        const file = files.find(item => item.id === button.dataset.previewDriveFile);
-        if (!file) return;
-        await previewHiddenDriveDocumentPdf(file, button);
-      });
-    });
-
-    hiddenDriveList.querySelectorAll('[data-download-drive-file]').forEach(button => {
-      button.addEventListener('click', async () => {
-        const file = files.find(item => item.id === button.dataset.downloadDriveFile);
-        if (!file) return;
-        try {
-          button.disabled = true;
-          button.textContent = 'Téléchargement…';
-          const blob = await downloadDriveFileBlob(file);
-          downloadBlob(blob, file.name || 'fichier-drive-cache');
-        } catch (error) {
-          console.error(error);
-          alert('Impossible de télécharger ce fichier Drive caché.');
-        } finally {
-          button.disabled = false;
-          button.textContent = 'Télécharger';
-        }
-      });
-    });
-
-    hiddenDriveList.querySelectorAll('[data-delete-drive-file]').forEach(button => {
-      button.addEventListener('click', async () => {
-        const file = files.find(item => item.id === button.dataset.deleteDriveFile);
-        if (!file) return;
-        const label = file.name || 'ce fichier';
-        const confirmed = confirm('Supprimer définitivement du Drive caché : "' + label + '" ?\n\nCette action ne peut pas être annulée. Pense à télécharger une sauvegarde avant de supprimer.');
-        if (!confirmed) return;
-
-        try {
-          button.disabled = true;
-          button.textContent = 'Suppression…';
-          await deleteHiddenDriveFile(file);
-          hiddenDriveStatus.textContent = 'Fichier supprimé : ' + label;
-          await refreshHiddenDriveList();
-        } catch (error) {
-          console.error(error);
-          alert('Impossible de supprimer ce fichier Drive caché. Vérifie la connexion Google Drive puis réessaie.');
-        } finally {
-          button.disabled = false;
-          button.textContent = 'Supprimer';
-        }
-      });
-    });
+    hiddenDriveFilesCache = await listDriveAppDataFiles();
+    renderHiddenDriveList();
   } catch (error) {
     console.error(error);
     hiddenDriveStatus.textContent = 'Impossible de charger les fichiers cachés Drive. Connecte Google Drive puis réessaie.';
@@ -1697,6 +1796,13 @@ globalSaveBtn?.addEventListener('click', saveAllModulesFromPortal);
 hiddenDriveBtn?.addEventListener('click', openHiddenDriveModal);
 closeHiddenDriveBtn?.addEventListener('click', closeHiddenDriveModal);
 refreshHiddenDriveBtn?.addEventListener('click', refreshHiddenDriveList);
+
+hiddenDriveTabs?.addEventListener('click', event => {
+  const button = event.target.closest('[data-drive-category]');
+  if (!button) return;
+  hiddenDriveActiveCategory = button.dataset.driveCategory || 'all';
+  renderHiddenDriveList();
+});
 hiddenDriveModal?.addEventListener('click', event => {
   if (event.target === hiddenDriveModal) closeHiddenDriveModal();
 });

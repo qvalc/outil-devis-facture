@@ -788,185 +788,106 @@ iframe {
     line-height: 1.6;
     font-size: 14px;
 }
-
-/* === Ajustement portail : navigation supérieure compacte + menu utilisateur propre === */
-#portalScreen .portal-shell {
-    gap: 14px;
-}
-
-#portalScreen .portal-topbar {
-    justify-content: space-between;
-    align-items: center;
-    gap: 18px;
-    margin-bottom: 0;
-    padding: 18px 24px;
-    background: rgba(255, 255, 255, 0.94);
-    border: 1px solid rgba(219, 228, 240, 0.95);
-    border-radius: 24px;
-    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.07);
-}
-
-#portalScreen .portal-topbar .title-wrap {
-    display: none !important;
-}
-
-#portalScreen .main-tabs {
-    margin: 0;
+/* Tri des fichiers Drive cachés */
+.hidden-drive-tabs {
     display: flex;
-    gap: 18px;
-    align-items: center;
     flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #f8fafc;
 }
 
-#portalScreen .main-tab {
-    min-height: 52px;
+.hidden-drive-tab {
     display: inline-flex;
     align-items: center;
-    gap: 12px;
-    padding: 0 18px;
+    gap: 8px;
+    min-height: 38px;
+    padding: 8px 12px;
+    border-radius: 12px;
     border: 1px solid transparent;
-    border-radius: 14px;
     background: transparent;
-    color: #142033;
     box-shadow: none;
-    font-size: 15px;
-    font-weight: 750;
-    white-space: nowrap;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
 }
 
-#portalScreen .main-tab:hover {
-    background: #f8fafc;
+.hidden-drive-tab:hover {
+    background: #fff;
+    border-color: var(--line);
     transform: none;
 }
 
-#portalScreen .main-tab.active {
-    background: #eef4ff;
-    border-color: #d6e4ff;
+.hidden-drive-tab.active {
+    background: #fff;
+    border-color: #bfd4ff;
     color: var(--primary);
-    box-shadow: 0 8px 18px rgba(29, 78, 216, 0.08);
+    box-shadow: var(--shadow-soft);
 }
 
-#portalScreen .main-tab .tab-icon {
-    width: 22px;
+.hidden-drive-tab strong {
     min-width: 22px;
-    text-align: center;
-    font-size: 21px;
-    line-height: 1;
-    color: #40516e;
-}
-
-#portalScreen .main-tab.active .tab-icon {
-    color: var(--primary);
-}
-
-#portalScreen .user-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-left: auto;
-}
-
-#portalScreen #globalSaveBtn {
-    min-height: 52px;
-    padding: 0 22px;
-    border-radius: 14px;
-    box-shadow: 0 14px 28px rgba(29, 78, 216, 0.20);
-}
-
-#portalScreen .user-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 52px;
-    max-width: 240px;
-    padding: 0 16px;
+    height: 22px;
+    padding: 0 7px;
     border-radius: 999px;
-    border: 1px solid #dbe4f0;
-    background: #ffffff;
-    color: #142033;
-    font-size: 14px;
-    font-weight: 700;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
-}
-
-#portalScreen .settings-menu {
-    position: relative;
-}
-
-#portalScreen .settings-icon-btn {
-    width: 52px;
-    height: 52px;
-    min-width: 52px;
-    padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 14px;
-    border: 1px solid #dbe4f0;
-    background: #ffffff;
-    color: #142033;
-    font-size: 24px;
+    background: #eef2ff;
+    color: var(--primary);
+    font-size: 12px;
     line-height: 1;
-    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
 }
 
-#portalScreen .settings-icon-btn:hover {
+.hidden-drive-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.hidden-drive-category-badge {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid #dbeafe;
+    background: #eff6ff;
+    color: var(--primary);
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.hidden-drive-empty {
+    border: 1px dashed var(--line);
+    border-radius: 16px;
+    padding: 18px;
+    color: var(--muted);
     background: #f8fafc;
-    transform: none;
+    text-align: center;
 }
 
-#portalScreen .settings-dropdown {
-    top: calc(100% + 10px);
-    right: 0;
-    min-width: 300px;
-    padding: 8px;
-    border-radius: 18px;
-    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.14);
+.icon-btn {
+    width: 46px;
+    height: 46px;
+    padding: 0;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
 }
 
-#portalScreen .settings-dropdown button {
-    min-height: 42px;
-    padding: 0 12px;
-    border: 1px solid transparent;
-    box-shadow: none;
-}
-
-#portalScreen .workspace {
-    border-radius: 26px;
-}
-
-@media (max-width: 900px) {
-    #portalScreen .portal-topbar {
-        padding: 14px;
+@media (max-width: 700px) {
+    .hidden-drive-tabs {
+        flex-direction: column;
         align-items: stretch;
     }
 
-    #portalScreen .main-tabs,
-    #portalScreen .user-actions {
+    .hidden-drive-tab {
+        justify-content: space-between;
         width: 100%;
     }
-
-    #portalScreen .user-actions {
-        margin-left: 0;
-    }
-}
-
-.icon-btn{
-    width:44px;
-    height:44px;
-    padding:0;
-    border-radius:14px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:18px;
-}
-
-.chevron{
-    font-size:16px;
-    opacity:.7;
 }
