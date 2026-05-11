@@ -137,69 +137,31 @@
 
   <section id="portalScreen" class="hidden">
     <div class="portal-shell">
-      <div class="portal-topbar modern-portal-nav">
-        <div class="main-tabs" aria-label="Navigation principale">
-          <button class="main-tab active" data-main-tab="devis" type="button">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"></path><path d="M15 3v6h6"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
-            </span>
-            <span>Devis &amp; Facture</span>
-          </button>
-          <button class="main-tab" data-main-tab="compta" type="button">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M4 20V10"></path><path d="M9 20V4"></path><path d="M14 20v-7"></path><path d="M19 20V7"></path><path d="M3 20h18"></path></svg>
-            </span>
-            <span>Comptabilité</span>
-          </button>
-          <button class="main-tab" data-main-tab="chantier" type="button">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-            </span>
-            <span>Suivi client</span>
-          </button>
-          <button class="main-tab" data-main-tab="impots" type="button">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M3 21h18"></path><path d="M5 21V10"></path><path d="M19 21V10"></path><path d="M12 3 4 8h16z"></path><path d="M9 21V10"></path><path d="M15 21V10"></path></svg>
-            </span>
-            <span>Impôts IPP</span>
-          </button>
+      <div class="portal-topbar">
+        <div class="main-tabs">
+          <button class="main-tab active" data-main-tab="devis" type="button"><span class="tab-icon" aria-hidden="true">▣</span><span>Devis &amp; Facture</span></button>
+          <button class="main-tab" data-main-tab="compta" type="button"><span class="tab-icon" aria-hidden="true">▥</span><span>Comptabilité</span></button>
+          <button class="main-tab" data-main-tab="chantier" type="button"><span class="tab-icon" aria-hidden="true">♙</span><span>Suivi client</span></button>
+          <button class="main-tab" data-main-tab="impots" type="button"><span class="tab-icon" aria-hidden="true">▤</span><span>Impôts IPP</span></button>
+          <input id="fullRestoreInput" type="file" accept="application/zip,.zip" class="hidden" />
         </div>
 
-        <div class="user-actions portal-actions">
-          <button id="connectDriveBtn" class="top-action-btn" type="button">
-            <span class="drive-logo" aria-hidden="true"></span>
-            <span>Google Drive</span>
-          </button>
-
+        <div class="user-actions">
+          <button id="globalSaveBtn" class="primary" type="button" title="Sauvegarder tous les modules">Sauvegarder</button>
+          <div id="currentUser" class="user-pill"></div>
           <div id="settingsMenu" class="settings-menu">
-            <button id="settingsMenuBtn" class="top-action-btn" type="button" title="Paramètres" aria-label="Paramètres">
-              <span class="nav-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 3.6 8a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8 3.6a1.7 1.7 0 0 0 1-.6A1.7 1.7 0 0 0 9.6 1.9V2a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 3.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8c.2.36.55.6 1 .6h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1 .6z"></path></svg>
-              </span>
-              <span>Paramètres</span>
-            </button>
+            <button id="settingsMenuBtn" class="settings-icon-btn ghost" type="button" title="Menu utilisateur" aria-label="Menu utilisateur">⌄</button>
             <div class="settings-dropdown" id="settingsDropdown">
-              <button id="globalSaveBtn" class="primary" type="button" title="Sauvegarder tous les modules">Sauvegarder</button>
               <button id="fullBackupBtn" type="button">Créer une sauvegarde ZIP</button>
               <button id="fullRestoreBtn" type="button">Restaurer une sauvegarde ZIP</button>
               <button id="hiddenDriveBtn" type="button">Fichiers Drive cachés</button>
+              <button id="connectDriveBtn" type="button">Connecter Google Drive</button>
               <button id="disconnectDriveBtn" type="button">Déconnecter Google Drive</button>
               <button id="sendVerificationBtn" type="button">Renvoyer email de vérification</button>
               <div class="settings-separator"></div>
               <button id="logoutBtn" class="danger-link" type="button">Déconnecter</button>
             </div>
           </div>
-
-          <button class="top-action-btn" type="button" onclick="document.querySelector('[data-main-tab=\'compta\']')?.click(); setTimeout(() => document.getElementById('comptaFrame')?.contentWindow?.openIntervat?.(), 150);">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M3 21h18"></path><path d="M5 21V10"></path><path d="M19 21V10"></path><path d="M12 3 4 8h16z"></path><path d="M9 21V10"></path><path d="M15 21V10"></path></svg>
-            </span>
-            <span>Intervat</span>
-          </button>
-
-          <div id="currentUser" class="user-pill modern-user-pill"></div>
-          <button class="profile-chevron" type="button" aria-label="Menu utilisateur">⌄</button>
-          <input id="fullRestoreInput" type="file" accept="application/zip,.zip" class="hidden" />
         </div>
       </div>
 
