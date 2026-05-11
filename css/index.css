@@ -356,6 +356,7 @@ input:focus {
 }
 
 .portal-topbar {
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -788,6 +789,7 @@ iframe {
     line-height: 1.6;
     font-size: 14px;
 }
+
 /* Tri des fichiers Drive cachés */
 .hidden-drive-tabs {
     display: flex;
@@ -890,4 +892,21 @@ iframe {
         justify-content: space-between;
         width: 100%;
     }
+}
+
+.topbar-logo {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.topbar-logo img {
+    height: 42px;
+    width: auto;
+    object-fit: contain;
+    opacity: 0.95;
 }
