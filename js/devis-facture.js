@@ -3052,58 +3052,410 @@ window.openInvoicePreviewByNumberFromDrive = openInvoicePreviewByNumberFromDrive
       }, 50);
     }
 
-    function renderPeppol() {
+    function peppolTrim(value) {
+      return String(value ?? '').trim();
+    }
+
+    function peppolAmount(value) {
+      return Number(value || 0).toFixed(2);
+    }
+
+    function xmlEscape(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    }
+
+    function normalizeVatNumber(value) {
+      return peppolTrim(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    }
+
+    function getVatCountry(vatNumber) {
+      const normalized = normalizeVatNumber(vatNumber);
+      return /^[A-Z]{2}/.test(normalized) ? normalized.slice(0, 2) : 'BE';
+    }
+
+    function isBelgianVat(value) {
+      return normalizeVatNumber(value).startsWith('BE');
+    }
+
+    function peppolSafeFileName(value, fallback = 'facture') {
+      return String(value || fallback)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || fallback;
+    }
+
+    function getInvoiceLinesForPeppol() {
+      const invoice = data.invoice || {};
+      const mainLines = Array.isArray(invoice.lines) ? invoice.lines : [];
+      const suppliesLines = invoice.suppliesEnabled && Array.isArray(invoice.suppliesLines) ? invoice.suppliesLines : [];
+      return [...mainLines, ...suppliesLines]
+        .filter(row => peppolTrim(row.description) || toNumber(row.qty) || toNumber(row.unitPrice));
+    }
+
+    function getPeppolChecks() {
+      const invoice = data.invoice || {};
       const totals = totalsFor('invoice');
-      const hasInvoiceNumber = !!String(data.invoice.documentNumber || '').trim();
-      const hasClientName = !!String(data.invoice.clientName || '').trim();
-      const hasDate = !!String(data.invoice.date || '').trim();
+      const lines = getInvoiceLinesForPeppol();
+      const checks = [
+        { ok: !!peppolTrim(invoice.documentNumber), label: 'Numéro de facture renseigné' },
+        { ok: !!peppolTrim(invoice.date), label: 'Date de facture renseignée' },
+        { ok: !!peppolTrim(invoice.dueDate), label: 'Date d’échéance renseignée' },
+        { ok: !!peppolTrim(invoice.clientName), label: 'Nom du client renseigné' },
+        { ok: !!peppolTrim(invoice.address), label: 'Adresse client renseignée' },
+        { ok: !!peppolTrim(invoice.clientVat), label: 'N° TVA client renseigné' },
+        { ok: !!peppolTrim(invoice.clientEmail), label: 'Email client renseigné' },
+        { ok: !!peppolTrim(data.company.name), label: 'Nom de votre société renseigné' },
+        { ok: !!peppolTrim(data.company.vat), label: 'N° TVA de votre société renseigné' },
+        { ok: !!peppolTrim(data.company.iban), label: 'IBAN renseigné' },
+        { ok: lines.length > 0, label: 'Au moins une ligne de facture présente' },
+        { ok: totals.tvac > 0, label: 'Montant total supérieur à 0 €' }
+      ];
+      return checks;
+    }
+
+    function renderPeppolChecklist() {
+      return getPeppolChecks().map(item => `
+        <div class="peppol-check ${item.ok ? 'ok' : 'ko'}">
+          <span>${item.ok ? '✓' : '✕'}</span>
+          <strong>${escapeHtml(item.label)}</strong>
+        </div>
+      `).join('');
+    }
+
+    function getPeppolReadiness() {
+      const checks = getPeppolChecks();
+      const missing = checks.filter(item => !item.ok);
+      if (!missing.length) return { level: 'ready', title: 'Facture prête', text: 'Tous les contrôles principaux sont validés.' };
+      if (missing.length <= 3) return { level: 'warning', title: 'Presque prête', text: `${missing.length} point(s) à corriger avant un envoi propre.` };
+      return { level: 'danger', title: 'Facture incomplète', text: `${missing.length} point(s) manquant(s) ou incomplets.` };
+    }
+
+    function getPeppolHistory() {
+      if (!Array.isArray(data.invoice.peppolHistory)) data.invoice.peppolHistory = [];
+      return data.invoice.peppolHistory;
+    }
+
+    function addPeppolHistory(label) {
+      getPeppolHistory().unshift({
+        id: `peppol-${Date.now().toString(36)}`,
+        date: new Date().toISOString(),
+        label
+      });
+      data.invoice.peppolHistory = getPeppolHistory().slice(0, 30);
+      saveData(false);
+      render();
+    }
+
+    function setInvoicePeppolStatus(status) {
+      data.invoice.peppolStatus = status;
+      const labels = {
+        ready: 'Facture marquée prête à envoyer',
+        sent: 'Facture marquée comme envoyée',
+        paid: 'Facture marquée comme payée'
+      };
+      if (status === 'paid') {
+        data.invoice.status = 'paid';
+        data.invoice.paidAmount = totalsFor('invoice').tvac;
+      }
+      addPeppolHistory(labels[status] || 'Statut mis à jour');
+    }
+
+    function copyInvoiceEmailText() {
+      const invoice = data.invoice || {};
+      const totals = totalsFor('invoice');
+      const subject = peppolTrim(data.mail?.invoiceSubject || 'Votre facture {documentNumber}');
+      const body = peppolTrim(data.mail?.invoiceBody || 'Bonjour {clientName},\n\nVeuillez trouver ci-joint votre facture {documentNumber}.\n\nCordialement,\n{companyName}');
+      const replacements = {
+        '{clientName}': invoice.clientName || '',
+        '{clientEmail}': invoice.clientEmail || '',
+        '{documentNumber}': invoice.documentNumber || '',
+        '{companyName}': data.company.name || '',
+        '{totalHTVA}': money(totals.htva),
+        '{totalTVA}': money(totals.vat),
+        '{totalTTC}': money(totals.tvac),
+        '{date}': invoice.date || '',
+        '{dueDate}': invoice.dueDate || ''
+      };
+      const replaceTokens = text => Object.entries(replacements).reduce((acc, [key, value]) => acc.replaceAll(key, value), text);
+      const fullText = `Objet : ${replaceTokens(subject)}\n\n${replaceTokens(body)}`;
+      navigator.clipboard?.writeText(fullText).then(() => {
+        addPeppolHistory('Texte email copié');
+        alert('Texte email copié.');
+      }).catch(() => {
+        prompt('Copie le texte email :', fullText);
+      });
+    }
+
+    function buildPeppolXml() {
+      const invoice = data.invoice || {};
+      const company = data.company || {};
+      const totals = totalsFor('invoice');
+      const lines = getInvoiceLinesForPeppol();
+      const supplierVat = normalizeVatNumber(company.vat);
+      const customerVat = normalizeVatNumber(invoice.clientVat);
+      const supplierCountry = getVatCountry(supplierVat);
+      const customerCountry = getVatCountry(customerVat);
+      const supplierEndpoint = supplierVat || 'BE0000000000';
+      const customerEndpoint = customerVat || 'BE0000000000';
+      const issueDate = invoice.date || new Date().toISOString().slice(0, 10);
+      const dueDate = invoice.dueDate || issueDate;
+      const invoiceNumber = peppolTrim(invoice.documentNumber) || 'FACTURE-SANS-NUMERO';
+      const paymentReference = peppolTrim(data.communication?.formatted) || invoiceNumber;
+      const paymentTerms = peppolTrim(invoice.notes) || peppolTrim(company.conditions) || 'Paiement à l’échéance indiquée.';
+      const currency = 'EUR';
+
+      const vatByRate = new Map();
+      lines.forEach(row => {
+        const rate = toNumber(row.vatRate);
+        const base = lineNet(row);
+        const tax = lineVat(row);
+        const current = vatByRate.get(rate) || { base: 0, tax: 0 };
+        current.base += base;
+        current.tax += tax;
+        vatByRate.set(rate, current);
+      });
+
+      const taxSubtotals = [...vatByRate.entries()].map(([rate, item]) => {
+        const category = rate === 0 ? 'Z' : 'S';
+        return `
+      <cac:TaxSubtotal>
+        <cbc:TaxableAmount currencyID="${currency}">${peppolAmount(item.base)}</cbc:TaxableAmount>
+        <cbc:TaxAmount currencyID="${currency}">${peppolAmount(item.tax)}</cbc:TaxAmount>
+        <cac:TaxCategory>
+          <cbc:ID>${category}</cbc:ID>
+          <cbc:Percent>${peppolAmount(rate)}</cbc:Percent>
+          <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+        </cac:TaxCategory>
+      </cac:TaxSubtotal>`;
+      }).join('');
+
+      const invoiceLines = lines.map((row, index) => {
+        const qty = toNumber(row.qty) || 1;
+        const rate = toNumber(row.vatRate);
+        const category = rate === 0 ? 'Z' : 'S';
+        const description = peppolTrim(row.description) || `Ligne ${index + 1}`;
+        const unitCode = peppolTrim(row.unit).toLowerCase().includes('h') ? 'HUR' : 'C62';
+        return `
+  <cac:InvoiceLine>
+    <cbc:ID>${index + 1}</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="${unitCode}">${peppolAmount(qty)}</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="${currency}">${peppolAmount(lineNet(row))}</cbc:LineExtensionAmount>
+    <cac:Item>
+      <cbc:Name>${xmlEscape(description)}</cbc:Name>
+      <cac:ClassifiedTaxCategory>
+        <cbc:ID>${category}</cbc:ID>
+        <cbc:Percent>${peppolAmount(rate)}</cbc:Percent>
+        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+      </cac:ClassifiedTaxCategory>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="${currency}">${peppolAmount(toNumber(row.unitPrice))}</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>`;
+      }).join('');
+
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:CustomizationID>
+  <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
+  <cbc:ID>${xmlEscape(invoiceNumber)}</cbc:ID>
+  <cbc:IssueDate>${xmlEscape(issueDate)}</cbc:IssueDate>
+  <cbc:DueDate>${xmlEscape(dueDate)}</cbc:DueDate>
+  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+  <cbc:DocumentCurrencyCode>${currency}</cbc:DocumentCurrencyCode>
+  <cbc:BuyerReference>${xmlEscape(invoice.clientNumber || invoice.clientName || 'Client')}</cbc:BuyerReference>
+
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cbc:EndpointID schemeID="0208">${xmlEscape(supplierEndpoint)}</cbc:EndpointID>
+      <cac:PartyName><cbc:Name>${xmlEscape(company.name)}</cbc:Name></cac:PartyName>
+      <cac:PostalAddress>
+        <cbc:StreetName>${xmlEscape(company.address)}</cbc:StreetName>
+        <cbc:CityName>${xmlEscape(company.city)}</cbc:CityName>
+        <cac:Country><cbc:IdentificationCode>${xmlEscape(supplierCountry)}</cbc:IdentificationCode></cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyTaxScheme>
+        <cbc:CompanyID>${xmlEscape(supplierVat)}</cbc:CompanyID>
+        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity><cbc:RegistrationName>${xmlEscape(company.name)}</cbc:RegistrationName></cac:PartyLegalEntity>
+      <cac:Contact>
+        <cbc:ElectronicMail>${xmlEscape(company.email)}</cbc:ElectronicMail>
+        <cbc:Telephone>${xmlEscape(company.phone)}</cbc:Telephone>
+      </cac:Contact>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cbc:EndpointID schemeID="0208">${xmlEscape(customerEndpoint)}</cbc:EndpointID>
+      <cac:PartyName><cbc:Name>${xmlEscape(invoice.clientName)}</cbc:Name></cac:PartyName>
+      <cac:PostalAddress>
+        <cbc:StreetName>${xmlEscape(invoice.address)}</cbc:StreetName>
+        <cac:Country><cbc:IdentificationCode>${xmlEscape(customerCountry)}</cbc:IdentificationCode></cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyTaxScheme>
+        <cbc:CompanyID>${xmlEscape(customerVat)}</cbc:CompanyID>
+        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity><cbc:RegistrationName>${xmlEscape(invoice.clientName)}</cbc:RegistrationName></cac:PartyLegalEntity>
+      <cac:Contact><cbc:ElectronicMail>${xmlEscape(invoice.clientEmail)}</cbc:ElectronicMail></cac:Contact>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+
+  <cac:PaymentMeans>
+    <cbc:PaymentMeansCode>30</cbc:PaymentMeansCode>
+    <cbc:PaymentID>${xmlEscape(paymentReference)}</cbc:PaymentID>
+    <cac:PayeeFinancialAccount>
+      <cbc:ID>${xmlEscape(company.iban)}</cbc:ID>
+      ${peppolTrim(company.bic) ? `<cac:FinancialInstitutionBranch><cbc:ID>${xmlEscape(company.bic)}</cbc:ID></cac:FinancialInstitutionBranch>` : ''}
+    </cac:PayeeFinancialAccount>
+  </cac:PaymentMeans>
+
+  <cac:PaymentTerms><cbc:Note>${xmlEscape(paymentTerms)}</cbc:Note></cac:PaymentTerms>
+
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="${currency}">${peppolAmount(totals.vat)}</cbc:TaxAmount>${taxSubtotals}
+  </cac:TaxTotal>
+
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="${currency}">${peppolAmount(totals.htva)}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="${currency}">${peppolAmount(totals.htva)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="${currency}">${peppolAmount(totals.tvac)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="${currency}">${peppolAmount(totals.tvac)}</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+${invoiceLines}
+</Invoice>`;
+    }
+
+    function downloadPeppolXmlForCurrentInvoice() {
+      const readiness = getPeppolReadiness();
+      if (readiness.level === 'danger' && !confirm('La facture est encore incomplète. Exporter quand même le XML ?')) return;
+      const xml = buildPeppolXml();
+      const number = peppolSafeFileName(data.invoice.documentNumber, 'facture');
+      const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${number}-peppol.xml`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      addPeppolHistory('XML Peppol exporté');
+    }
+
+    function renderPeppolHistory() {
+      const history = getPeppolHistory();
+      if (!history.length) return '<div class="peppol-history-empty">Aucune action enregistrée pour cette facture.</div>';
+      return history.map(item => {
+        const date = item.date ? new Date(item.date) : null;
+        const dateText = date && !Number.isNaN(date.getTime()) ? date.toLocaleString('fr-BE') : '—';
+        return `<div class="peppol-history-item"><strong>${escapeHtml(dateText)}</strong><span>${escapeHtml(item.label)}</span></div>`;
+      }).join('');
+    }
+
+    function renderPeppol() {
+      const invoice = data.invoice || {};
+      const totals = totalsFor('invoice');
+      const readiness = getPeppolReadiness();
+      const clientVat = normalizeVatNumber(invoice.clientVat);
+      const clientType = clientVat
+        ? (isBelgianVat(clientVat) ? 'Entreprise belge / B2B probable' : 'Entreprise étrangère / TVA intracom probable')
+        : 'Client non identifié fiscalement';
+      const statusLabel = {
+        ready: 'Prête',
+        sent: 'Envoyée',
+        paid: 'Payée'
+      }[invoice.peppolStatus] || 'Non envoyée';
 
       return `
     <section class="page ${activePage === 'peppol' ? 'active' : ''}" data-page="peppol">
       <div class="sheet">
         <div class="toolbar no-print">
-          <div class="hint">Prépare l’envoi de la facture via Doccle / Peppol</div>
-          <div class="inline-actions">
-            <button onclick="printInvoiceFromPeppol()">Imprimer la facture</button>
-            <button class="primary" onclick="openDoccle()">Ouvrir Doccle</button>
+          <div class="toolbar-meta">
+            <div class="toolbar-title">Assistant facture électronique</div>
+            <div class="toolbar-subtitle">Contrôle, export XML Peppol, suivi d’envoi et paiement de la facture en cours.</div>
+          </div>
+          <div class="toolbar-actions">
+            <button onclick="printInvoiceFromPeppol()">Imprimer / PDF</button>
+            <button onclick="copyInvoiceEmailText()">Copier email</button>
+            <button class="primary" onclick="downloadPeppolXmlForCurrentInvoice()">Exporter XML Peppol</button>
+            <button onclick="openDoccle()">Ouvrir Doccle</button>
           </div>
         </div>
 
-        <div class="comm-panel">
-          <h2>Peppol / Doccle</h2>
-          <div class="simple-box" style="margin-bottom:16px;">
-            Utilise cet onglet comme étape finale : vérifie la facture, imprime-la en PDF, puis ouvre Doccle pour l’envoyer.
+        <div class="comm-panel peppol-panel">
+          <div class="peppol-head">
+            <div>
+              <h2>Conformité & envoi</h2>
+              <p>Basé sur la facture actuellement ouverte dans l’onglet Facture.</p>
+            </div>
+            <div class="peppol-status ${readiness.level}">
+              <strong>${escapeHtml(readiness.title)}</strong>
+              <span>${escapeHtml(readiness.text)}</span>
+            </div>
           </div>
 
-          <div class="comm-meta" style="margin-bottom:18px;">
+          <div class="peppol-summary-grid">
             <div class="simple-box">
               <strong>N° facture</strong><br>
-              ${escapeHtml(data.invoice.documentNumber || '—')}
+              ${escapeHtml(invoice.documentNumber || '—')}
             </div>
             <div class="simple-box">
               <strong>Client</strong><br>
-              ${escapeHtml(data.invoice.clientName || '—')}
+              ${escapeHtml(invoice.clientName || '—')}
             </div>
             <div class="simple-box">
               <strong>Total TVAC</strong><br>
               ${escapeHtml(money(totals.tvac))}
             </div>
+            <div class="simple-box">
+              <strong>Statut</strong><br>
+              ${escapeHtml(statusLabel)}
+            </div>
           </div>
 
-          <div class="simple-box" style="margin-bottom:18px; line-height:1.7;">
-            <strong>Checklist avant envoi</strong><br>
-            ${hasInvoiceNumber ? '✔' : '✖'} Numéro de facture renseigné<br>
-            ${hasClientName ? '✔' : '✖'} Nom du client renseigné<br>
-            ${hasDate ? '✔' : '✖'} Date de facture renseignée<br>
-            ${totals.tvac > 0 ? '✔' : '✖'} Montant total supérieur à 0
+          <div class="peppol-grid">
+            <div class="simple-box">
+              <h3>Checklist facture</h3>
+              <div class="peppol-checklist">${renderPeppolChecklist()}</div>
+            </div>
+
+            <div class="simple-box">
+              <h3>Analyse client</h3>
+              <div class="peppol-client-card">
+                <div><span>Type</span><strong>${escapeHtml(clientType)}</strong></div>
+                <div><span>N° TVA</span><strong>${escapeHtml(clientVat || '—')}</strong></div>
+                <div><span>Email</span><strong>${escapeHtml(invoice.clientEmail || '—')}</strong></div>
+                <div><span>Adresse</span><strong>${escapeHtml(invoice.address || '—')}</strong></div>
+              </div>
+              <div class="peppol-note">
+                L’export XML prépare un fichier UBL/Peppol à contrôler avant dépôt chez un prestataire Peppol ou une plateforme compatible.
+              </div>
+            </div>
           </div>
 
-          <div class="simple-box" style="line-height:1.7;">
-            <strong>Étapes</strong><br>
-            1. Vérifie l’onglet Facture<br>
-            2. Clique sur “Imprimer la facture” et enregistre en PDF<br>
-            3. Clique sur “Ouvrir Doccle”<br>
-            4. Dépose la facture PDF dans Doccle
+          <div class="simple-box peppol-actions-box no-print">
+            <h3>Actions de suivi</h3>
+            <div class="peppol-actions">
+              <button onclick="setInvoicePeppolStatus('ready')">Marquer prête</button>
+              <button onclick="setInvoicePeppolStatus('sent')">Marquer envoyée</button>
+              <button onclick="setInvoicePeppolStatus('paid')">Marquer payée</button>
+            </div>
+          </div>
+
+          <div class="simple-box">
+            <h3>Historique</h3>
+            <div class="peppol-history">${renderPeppolHistory()}</div>
           </div>
         </div>
       </div>
