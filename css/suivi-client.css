@@ -715,3 +715,125 @@ td.num, th.num {
         display: grid !important;
     }
 }
+
+
+/* =========================================================
+   Modernisation boutons / onglets - reprise depuis fichiers originaux
+   ========================================================= */
+button,
+.file-label {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid #dbe4f0;
+    background: #ffffff;
+    color: #142033;
+    padding: 0 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease, color .16s ease;
+    white-space: nowrap;
+}
+
+button:hover,
+.file-label:hover {
+    background: #f8fbff;
+    border-color: #cbd8ea;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+button.primary,
+.primary {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+    color: #ffffff !important;
+    border-color: #1d4ed8 !important;
+    box-shadow: 0 10px 22px rgba(29, 78, 216, 0.22) !important;
+}
+
+button.primary:hover,
+.primary:hover {
+    background: linear-gradient(135deg, #1d4ed8, #1e40af) !important;
+    box-shadow: 0 12px 28px rgba(29, 78, 216, 0.28) !important;
+}
+
+button.danger,
+.danger {
+    background: #fff5f5 !important;
+    border-color: #fecaca !important;
+    color: #b91c1c !important;
+}
+
+button.danger:hover,
+.danger:hover {
+    background: #fee2e2 !important;
+    border-color: #fca5a5 !important;
+}
+
+.tabs {
+    gap: 22px;
+    border-bottom: 1px solid #e5edf7;
+    padding: 0 4px;
+    margin-bottom: 18px;
+}
+
+.tab {
+    min-height: 46px;
+    border: none !important;
+    border-bottom: 3px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #334155 !important;
+    box-shadow: none !important;
+    padding: 0 10px !important;
+}
+
+.tab:hover {
+    background: transparent !important;
+    color: #1d4ed8 !important;
+    transform: none !important;
+}
+
+.tab.active {
+    background: transparent !important;
+    border-bottom-color: #1d4ed8 !important;
+    color: #1d4ed8 !important;
+}
+
+.toolbar,
+.card,
+.form-card,
+.comm-panel,
+.side-panel,
+.main-panel,
+.table-wrap,
+.drive-file-item {
+    border-color: #e1e8f2 !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.045) !important;
+}
+
+input,
+select,
+textarea {
+    border-color: #dbe4f0 !important;
+    border-radius: 12px !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: #9ec0ff !important;
+    box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.08) !important;
+    outline: none !important;
+}

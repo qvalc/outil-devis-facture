@@ -788,3 +788,206 @@ iframe {
     line-height: 1.6;
     font-size: 14px;
 }
+
+/* =========================================================
+   Reprise interface portail - style proche de l'aperçu
+   ========================================================= */
+#portalScreen .portal-shell {
+    min-height: calc(100vh - 24px);
+    gap: 16px;
+}
+
+#portalScreen .portal-topbar.modern-portal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    width: 100%;
+    margin: 0 0 14px;
+    padding: 18px 28px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(219, 228, 240, 0.95);
+    border-radius: 22px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07);
+    backdrop-filter: blur(10px);
+}
+
+#portalScreen .modern-portal-nav .main-tabs {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    flex: 1 1 auto;
+}
+
+#portalScreen .modern-portal-nav .main-tab,
+#portalScreen .modern-portal-nav .top-action-btn {
+    min-height: 58px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 0 22px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    background: transparent;
+    color: #172033;
+    font-size: 15px;
+    font-weight: 750;
+    line-height: 1;
+    box-shadow: none;
+    white-space: nowrap;
+    transition: background .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+#portalScreen .modern-portal-nav .main-tab:hover,
+#portalScreen .modern-portal-nav .top-action-btn:hover {
+    background: #f8fbff;
+    border-color: #dbe4f0;
+    transform: translateY(-1px);
+}
+
+#portalScreen .modern-portal-nav .main-tab.active {
+    background: #eef4ff;
+    border-color: #d5e4ff;
+    color: #0b55e6;
+    box-shadow: 0 10px 24px rgba(29, 78, 216, 0.08);
+}
+
+#portalScreen .modern-portal-nav .nav-icon {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+    flex: 0 0 22px;
+}
+
+#portalScreen .modern-portal-nav .nav-icon svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+#portalScreen .modern-portal-nav .portal-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: nowrap;
+    margin: 0;
+}
+
+#portalScreen .modern-portal-nav .top-action-btn {
+    min-height: 56px;
+    padding: 0 20px;
+    background: #fff;
+    border-color: #dbe4f0;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+#portalScreen .drive-logo {
+    position: relative;
+    width: 22px;
+    height: 20px;
+    display: inline-block;
+    flex: 0 0 22px;
+}
+
+#portalScreen .drive-logo::before {
+    content: "";
+    position: absolute;
+    inset: 1px 0;
+    background: conic-gradient(from 240deg, #188038 0 33%, #fbbc04 0 66%, #4285f4 0 100%);
+    clip-path: polygon(48% 0, 70% 0, 100% 58%, 86% 100%, 64% 100%, 50% 72%, 34% 100%, 12% 100%, 0 58%);
+}
+
+#portalScreen .modern-user-pill {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #f8fbff;
+    border: 1px solid #cbdcff;
+    color: #0b55e6;
+    font-size: 14px;
+    font-weight: 800;
+    overflow: hidden;
+}
+
+#portalScreen .modern-user-pill:empty::before { content: "NS"; }
+
+#portalScreen .profile-chevron {
+    width: 32px;
+    height: 48px;
+    min-height: 48px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    color: #334155;
+    font-size: 22px;
+    line-height: 1;
+}
+
+#portalScreen .workspace {
+    margin: 0;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(219, 228, 240, 0.95);
+    border-radius: 22px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07);
+    overflow: hidden;
+}
+
+#portalScreen .workspace-head {
+    display: none !important;
+}
+
+#portalScreen iframe {
+    border: none;
+    width: 100%;
+    min-height: calc(100vh - 170px);
+    background: transparent;
+}
+
+#portalScreen .settings-menu { position: relative; }
+#portalScreen .settings-dropdown {
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 290px;
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 22px 60px rgba(15, 23, 42, 0.16);
+}
+
+@media (max-width: 1150px) {
+    #portalScreen .portal-topbar.modern-portal-nav {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    #portalScreen .modern-portal-nav .main-tabs,
+    #portalScreen .modern-portal-nav .portal-actions {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 700px) {
+    #portalScreen .portal-topbar.modern-portal-nav { padding: 12px; border-radius: 18px; }
+    #portalScreen .modern-portal-nav .main-tab,
+    #portalScreen .modern-portal-nav .top-action-btn { min-height: 48px; padding: 0 14px; }
+}
