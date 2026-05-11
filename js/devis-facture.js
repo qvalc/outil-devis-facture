@@ -3645,7 +3645,7 @@ ${invoiceLines}
         <section class="page ${activePage === docKey ? 'active' : ''}" data-page="${docKey}">
           <div class="toolbar no-print">
             <div class="toolbar-meta">
-              <div class="toolbar-title">Actions du ${docLabel.toLowerCase()}</div>
+              <div class="toolbar-title">Actions de la ${docLabel.toLowerCase()}</div>
               <div class="toolbar-subtitle">${docSubtitle}</div>
             </div>
             <div class="toolbar-actions">
