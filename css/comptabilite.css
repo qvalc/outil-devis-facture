@@ -550,3 +550,230 @@ textarea {
         font-size: 13px;
     }
 }
+
+
+/* =========================================================
+   BastCompta — harmonisation visuelle moderne
+   Boutons, onglets, barres d’action et cartes principales
+   ========================================================= */
+:root {
+  --modern-primary: #1d4ed8;
+  --modern-primary-hover: #1e40af;
+  --modern-primary-soft: #eef4ff;
+  --modern-primary-line: #bfd4ff;
+  --modern-text: #142033;
+  --modern-muted: #64748b;
+  --modern-line: #dbe4f0;
+  --modern-line-strong: #c7d2e3;
+  --modern-panel: #ffffff;
+  --modern-panel-soft: #f8fafc;
+  --modern-danger: #b91c1c;
+  --modern-danger-soft: #fff5f5;
+  --modern-shadow-btn: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --modern-shadow-btn-hover: 0 6px 16px rgba(15, 23, 42, 0.09);
+  --modern-shadow-primary: 0 8px 20px rgba(29, 78, 216, 0.22);
+  --modern-radius-btn: 14px;
+}
+
+button,
+.file-label,
+.tab,
+.main-tab,
+.auth-tab,
+.dropdown-toggle,
+.settings-icon-btn,
+.button-icon,
+.split-button-main,
+.split-button-toggle {
+  min-height: 42px;
+  border-radius: var(--modern-radius-btn);
+  border: 1px solid var(--modern-line);
+  background: var(--modern-panel);
+  color: var(--modern-text);
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: var(--modern-shadow-btn);
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease, transform .15s ease;
+}
+
+button:hover,
+.file-label:hover,
+.tab:hover,
+.main-tab:hover,
+.auth-tab:hover {
+  background: var(--modern-panel-soft);
+  border-color: var(--modern-line-strong);
+  box-shadow: var(--modern-shadow-btn-hover);
+  transform: translateY(-1px);
+}
+
+button:active,
+.tab:active,
+.main-tab:active,
+.auth-tab:active {
+  transform: translateY(0);
+  box-shadow: var(--modern-shadow-btn);
+}
+
+button:disabled,
+button[disabled] {
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none;
+}
+
+button.primary,
+.primary,
+.split-button-main.primary,
+.toolbar-group.primary button,
+#globalSaveBtn {
+  background: linear-gradient(135deg, #2563eb, var(--modern-primary));
+  border-color: var(--modern-primary);
+  color: #ffffff;
+  box-shadow: var(--modern-shadow-primary);
+}
+
+button.primary:hover,
+.primary:hover,
+.split-button-main.primary:hover,
+.toolbar-group.primary button:hover,
+#globalSaveBtn:hover {
+  background: linear-gradient(135deg, var(--modern-primary), var(--modern-primary-hover));
+  border-color: var(--modern-primary-hover);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(29, 78, 216, 0.28);
+}
+
+button.danger,
+.danger,
+button.danger-ghost,
+.danger-link {
+  background: var(--modern-danger-soft);
+  border-color: #fecaca;
+  color: var(--modern-danger);
+  box-shadow: var(--modern-shadow-btn);
+}
+
+button.danger:hover,
+.danger:hover,
+button.danger-ghost:hover,
+.danger-link:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: var(--modern-danger);
+}
+
+button.small,
+.invoice-preview-btn,
+.button-icon,
+.settings-icon-btn {
+  min-height: 38px;
+  border-radius: 12px;
+  padding: 0 12px;
+  box-shadow: var(--modern-shadow-btn);
+}
+
+.button-icon,
+.settings-icon-btn,
+.toolbar-group.more button,
+.split-button-toggle {
+  min-width: 42px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.tabs,
+.main-tabs,
+.auth-tabs {
+  gap: 8px;
+}
+
+.tab,
+.main-tab,
+.auth-tab {
+  box-shadow: none;
+  color: var(--modern-muted);
+  background: transparent;
+  border-color: transparent;
+}
+
+.tab.active,
+.main-tab.active,
+.auth-tab.active {
+  background: var(--modern-primary-soft);
+  border-color: var(--modern-primary-line);
+  color: var(--modern-primary);
+  box-shadow: none;
+  transform: none;
+}
+
+/* Onglets contenus dans une barre horizontale : style plus premium et moins “pilule”. */
+.tabs:not(.auth-tabs):not(.main-tabs) {
+  padding: 4px;
+  border-radius: 16px;
+}
+
+.toolbar,
+.portal-topbar,
+.card,
+.form-card,
+.side-panel,
+.main-panel,
+.hero,
+.menu-panel,
+.dropdown-menu,
+.settings-dropdown,
+.drive-modal-card {
+  border-color: var(--modern-line);
+}
+
+.toolbar,
+.card,
+.form-card,
+.side-panel,
+.main-panel,
+.hero {
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.055);
+}
+
+.split-button {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.split-button-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-button-toggle {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 0;
+}
+
+.menu-panel button,
+.dropdown-menu button,
+.settings-dropdown button {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 40px;
+  box-shadow: none;
+  background: transparent;
+}
+
+.menu-panel button:hover,
+.dropdown-menu button:hover,
+.settings-dropdown button:hover {
+  background: var(--modern-panel-soft);
+  transform: none;
+  box-shadow: none;
+}
