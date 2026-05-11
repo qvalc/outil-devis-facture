@@ -2361,9 +2361,9 @@ Communication : ${data.communication.formatted || '+++...+++'}`;
             ${doc.modifiedTime ? `Modifié le ${escapeHtml(new Date(doc.modifiedTime).toLocaleString('fr-BE'))}` : 'Date inconnue'}
           </div>
           <div class="inline-actions no-print">
-            <button type="button" onclick="loadDriveJsonFileById('${escapeAttr(doc.id)}')">Charger</button>
-            <button type="button" onclick="downloadDriveFileById('${escapeAttr(doc.id)}')">Télécharger</button>
-            <button type="button" class="danger" onclick="deleteDriveFileById('${escapeAttr(doc.id)}')">Supprimer</button>
+            <button type="button" data-drive-load-id="${escapeAttr(doc.id)}">Charger</button>
+            <button type="button" data-drive-download-id="${escapeAttr(doc.id)}">Télécharger</button>
+            <button type="button" class="danger" data-drive-delete-id="${escapeAttr(doc.id)}">Supprimer</button>
           </div>
         </div>
       </div>
@@ -3987,8 +3987,37 @@ Communication : ${data.communication.formatted || '+++...+++'}`)}</div>` : ``}
       if (!event.target.closest('[data-menu-root]')) {
         closeToolbarMenus();
       }
+
+      const loadBtn = event.target.closest('[data-drive-load-id]');
+      if (loadBtn) {
+        event.preventDefault();
+        loadDriveJsonFileById(loadBtn.dataset.driveLoadId);
+        return;
+      }
+
+      const downloadBtn = event.target.closest('[data-drive-download-id]');
+      if (downloadBtn) {
+        event.preventDefault();
+        downloadDriveFileById(downloadBtn.dataset.driveDownloadId);
+        return;
+      }
+
+      const deleteBtn = event.target.closest('[data-drive-delete-id]');
+      if (deleteBtn) {
+        event.preventDefault();
+        deleteDriveFileById(deleteBtn.dataset.driveDeleteId);
+      }
     });
 
+
+    // Exposition explicite des fonctions utilisées par les boutons du CRM / Suivi client.
+    // Cela évite que les boutons "Charger" ne fassent rien selon le contexte de chargement du script.
+    window.loadDriveJsonFileById = loadDriveJsonFileById;
+    window.downloadDriveFileById = downloadDriveFileById;
+    window.deleteDriveFileById = deleteDriveFileById;
+    window.selectDriveFileForImport = selectDriveFileForImport;
+    window.toggleDriveFileSelection = toggleDriveFileSelection;
+    window.loadDriveFiles = loadDriveFiles;
 
     // API appelée par index.html pour générer les PDF dans la sauvegarde ZIP
     let bastComptaBackupPdfState = null;
