@@ -1444,37 +1444,50 @@ window.addEventListener('message', event => {
 });
 
 async function openDevisDocumentFromSuiviClient(docKey = 'invoice') {
-  const pageKey = ['quote', 'invoice', 'reminder'].includes(docKey) ? docKey : 'invoice';
+
+  const pageKey = ['quote', 'invoice', 'reminder'].includes(docKey)
+    ? docKey
+    : 'invoice';
 
   switchMainTab('devis');
 
   const targetSrc = devisFrame?.dataset?.src || '';
-  if (devisFrame && targetSrc && (!devisFrame.getAttribute('src') || devisFrame.getAttribute('src') === 'about:blank')) {
+
+  if (
+    devisFrame &&
+    targetSrc &&
+    (!devisFrame.getAttribute('src') ||
+      devisFrame.getAttribute('src') === 'about:blank')
+  ) {
     devisFrame.setAttribute('src', targetSrc);
   }
 
   await waitForFrameLoad(devisFrame, 8000);
 
-  let sent = false;
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const setPageApi = getFrameApi(devisFrame, 'goToPage') || getFrameApi(devisFrame, 'setActivePage');
-    if (setPageApi) {
-      try {
-        setPageApi(pageKey);
-        sent = true;
-        break;
-      } catch (error) {
-        console.warn('Ouverture directe du document impossible.', error);
-      }
-    }
+  await new Promise(resolve => setTimeout(resolve, 120));
 
-    postToFrame(devisFrame, { type: 'BASTCOMPTA_SET_ACTIVE_PAGE', pageKey });
-    sent = true;
-    await new Promise(resolve => setTimeout(resolve, 100));
+  const setPageApi =
+    getFrameApi(devisFrame, 'goToPage') ||
+    getFrameApi(devisFrame, 'setActivePage');
+
+  if (setPageApi) {
+    try {
+      setPageApi(pageKey);
+    } catch (error) {
+      console.warn('Ouverture document impossible.', error);
+    }
+  } else {
+    postToFrame(devisFrame, {
+      type: 'BASTCOMPTA_SET_ACTIVE_PAGE',
+      pageKey
+    });
   }
 
-  setTimeout(() => resizeIframeToContent(devisFrame), 150);
-  return sent;
+  requestAnimationFrame(() => {
+    resizeIframeToContent(devisFrame);
+  });
+
+  return true;
 }
 
 window.openDevisDocumentFromSuiviClient = openDevisDocumentFromSuiviClient;
