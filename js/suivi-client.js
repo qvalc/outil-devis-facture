@@ -1058,11 +1058,18 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
                   <td>${escapeHtml(item.description || moneyTypeLabel(type) || '—')}<br><small>${escapeHtml(item.source || '')}${item.fileName ? ' • ' + escapeHtml(item.fileName) : ''}</small></td>
                   <td class="num">${formatMoney(projectMoneyValue(item))}${type === 'invoice' && Number(item.suppliesHtva || item.suppliesSaleHtva || item.suppliesCost || 0) ? '<br><small>Fournitures vendues: ' + formatMoney(item.suppliesSaleHtva || item.suppliesHtva || 0) + ' · Revient: ' + formatMoney(item.suppliesCost || item.suppliesCostHtva || item.suppliesHtva || 0) + '</small>' : ''}</td>
                   <td class="no-print">
-                    <div class="inline-actions">
+                    <div class="inline-actions document-actions">
                       ${isCrmDoc ? `<button class="small" onclick="previewCrmLinkedDocument('${type}', '${escapeAttr(item.id)}')">Afficher</button>` : ''}
                       ${isCrmDoc ? `<button class="small" onclick="loadCrmLinkedDocumentInDevis('${type}', '${escapeAttr(item.id)}')">Charger</button>` : ''}
-                      ${isCrmDoc ? `<button class="small primary" onclick="downloadCrmLinkedDocumentPdf('${type}', '${escapeAttr(item.id)}')">PDF</button>` : ''}
-                      ${isCrmDoc ? `<button class="small" onclick="downloadCrmLinkedDocument('${type}', '${escapeAttr(item.id)}')">JSON</button>` : ''}
+                      ${isCrmDoc ? `
+                        <details class="download-menu">
+                          <summary>Télécharger</summary>
+                          <div class="download-menu-panel">
+                            <button class="small" type="button" onclick="downloadCrmLinkedDocumentPdf('${type}', '${escapeAttr(item.id)}'); this.closest('details').removeAttribute('open');">PDF</button>
+                            <button class="small" type="button" onclick="downloadCrmLinkedDocument('${type}', '${escapeAttr(item.id)}'); this.closest('details').removeAttribute('open');">JSON</button>
+                          </div>
+                        </details>
+                      ` : ''}
                       <button class="small danger" onclick="${isCrmDoc ? `deleteCrmLinkedDocument('${type}', '${escapeAttr(item.id)}')` : `deleteMoneyItem('${type}', '${escapeAttr(item.id)}')`}">Supprimer</button>
                     </div>
                   </td>
@@ -1130,10 +1137,15 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           ${lines.length ? `<div class="table-wrap"><table><thead><tr><th>Description</th><th class="num">Qté</th><th class="num">Prix unit.</th><th class="num">HTVA</th></tr></thead><tbody>${lines.map(line => `<tr><td>${escapeHtml(line.description || '')}</td><td class="num">${escapeHtml(line.qty ?? line.quantity ?? '')}</td><td class="num">${formatMoney(line.unitPrice ?? line.price ?? 0)}</td><td class="num">${formatMoney(moneyLineHtva(line))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="hint">Aucune ligne détaillée disponible.</div>'}
         </div>
         ${supplies.length ? `<div class="form-card"><h3 class="section-title">Fournitures</h3><div class="table-wrap"><table><thead><tr><th>Description</th><th class="num">Qté</th><th class="num">Vente</th><th class="num">Revient</th></tr></thead><tbody>${supplies.map(line => `<tr><td>${escapeHtml(line.description || '')}</td><td class="num">${escapeHtml(line.qty ?? line.quantity ?? '')}</td><td class="num">${formatMoney(moneyLineHtva(line))}</td><td class="num">${formatMoney(moneyLineCostHtva(line))}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
-        <div class="modal-actions">
-          <button onclick="downloadCrmLinkedDocument('${type}', '${escapeAttr(item.id)}')">Télécharger JSON</button>
-          <button onclick="downloadCrmLinkedDocumentPdf('${type}', '${escapeAttr(item.id)}')">Télécharger PDF</button>
-          <button class="primary" onclick="loadCrmLinkedDocumentInDevis('${type}', '${escapeAttr(item.id)}')">Charger dans Devis & Facture</button>
+        <div class="modal-actions document-actions">
+          <button onclick="loadCrmLinkedDocumentInDevis('${type}', '${escapeAttr(item.id)}')">Charger dans Devis & Facture</button>
+          <details class="download-menu">
+            <summary>Télécharger</summary>
+            <div class="download-menu-panel">
+              <button type="button" onclick="downloadCrmLinkedDocumentPdf('${type}', '${escapeAttr(item.id)}'); this.closest('details').removeAttribute('open');">PDF</button>
+              <button type="button" onclick="downloadCrmLinkedDocument('${type}', '${escapeAttr(item.id)}'); this.closest('details').removeAttribute('open');">JSON</button>
+            </div>
+          </details>
         </div>
       `);
     }

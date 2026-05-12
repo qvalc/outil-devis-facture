@@ -715,3 +715,77 @@ td.num, th.num {
         display: grid !important;
     }
 }
+
+/* Actions documents : boutons sobres + menu Télécharger */
+.document-actions {
+    align-items: center;
+}
+
+.download-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.download-menu summary {
+    list-style: none;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 13px;
+    box-shadow: none;
+    user-select: none;
+}
+
+.download-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.download-menu summary::after {
+    content: " ▾";
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.download-menu[open] summary {
+    background: var(--panel-soft);
+}
+
+.download-menu-panel {
+    position: absolute;
+    top: calc(100% + 7px);
+    right: 0;
+    min-width: 150px;
+    display: grid;
+    gap: 4px;
+    padding: 6px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow-soft);
+    z-index: 40;
+}
+
+.download-menu-panel button {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--text);
+}
+
+.download-menu-panel button:hover {
+    background: var(--panel-soft);
+    transform: none;
+}
+
+.document-actions button.primary,
+.document-actions .download-menu button.primary {
+    background: var(--panel);
+    color: var(--text);
+    border-color: var(--line);
+}
