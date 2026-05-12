@@ -1217,3 +1217,39 @@ body.backup-pdf-capture .sheet {
         grid-template-columns: 1fr;
     }
 }
+
+
+/* Toolbar plus sobre : les actions importantes ne sont plus en bleu plein */
+.toolbar button.primary {
+    background: #fff;
+    color: var(--ink);
+    border-color: var(--line);
+}
+
+.toolbar button.primary:hover,
+.toolbar button:hover,
+.line-add-button:hover {
+    background: #f8fafc;
+    border-color: var(--line-strong);
+}
+
+.toolbar .split-button-main {
+    font-weight: 800;
+}
+
+.line-add-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: -6px 0 14px;
+}
+
+.line-add-button {
+    min-height: 34px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--ink);
+    background: #fff;
+    border-color: var(--line);
+    box-shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
+}

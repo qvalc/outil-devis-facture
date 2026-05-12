@@ -3582,6 +3582,9 @@ function renderLinesTable(docKey, section, title = '') {
             </tbody>
           </table>
         </div>
+        <div class="line-add-actions no-print">
+          <button type="button" class="line-add-button" onclick="addLine('${docKey}', '${section}')">+ ${section === 'suppliesLines' ? 'Fourniture' : 'Ligne'}</button>
+        </div>
       `;
 }
 
@@ -3657,9 +3660,6 @@ function renderDocumentPage(docKey) {
                 ${docKey === 'invoice' ? `<button onclick="copyQuoteToInvoice()">Reprendre le devis</button><button class="primary" onclick="sendInvoiceToAccountingFromIframe()">Envoyer en comptabilité</button>` : ''}
                 ${docKey === 'reminder' ? `<button onclick="copyInvoiceToReminder()">Reprendre la facture</button>` : ''}
                 <button onclick="saveCurrentClientFromDoc('${docKey}')">Enregistrer le client</button>
-                <button onclick="syncCurrentDocumentToChantierFromButton('${docKey}')">Lier au chantier</button>
-                <button onclick="addLine('${docKey}', 'lines')">+ Ajouter une ligne</button>
-                ${doc.suppliesEnabled ? `<button onclick="addLine('${docKey}', 'suppliesLines')">+ Ligne fournitures</button>` : ''}
               </div>
               <div class="toolbar-group primary">
                 <div class="split-button toolbar-menu" data-menu-root>
