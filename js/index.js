@@ -1891,7 +1891,6 @@ await initGoogleDrive();
 bindIframeMessaging();
 
 const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope('https://www.googleapis.com/auth/drive.appdata');
 googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
@@ -1899,22 +1898,10 @@ googleProvider.setCustomParameters({
 googleLoginBtn?.addEventListener('click', async () => {
   try {
     setMessage('Connexion Google en cours…', 'warning');
-
-    const result = await signInWithPopup(auth, googleProvider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-
-    if (credential?.accessToken) {
-      await acceptGoogleDriveToken({
-        access_token: credential.accessToken,
-        expires_in: 3600
-      });
-      setMessage('Connexion Google réussie. Google Drive est connecté pour les sauvegardes.', 'success');
-    } else {
-      await connectGoogleDrive();
-    }
+    await signInWithPopup(auth, googleProvider);
+    setMessage('Connexion réussie.', 'success');
   } catch (error) {
-    console.error(error);
-    setMessage(error?.message || humanizeAuthError(error), 'error');
+    setMessage(humanizeAuthError(error), 'error');
   }
 });
 
