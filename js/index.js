@@ -1498,7 +1498,7 @@ async function ensureGoogleAccessToken(interactive = true) {
 
   googleRequestInFlight = new Promise((resolve, reject) => {
     const previousCallback = googleTokenClient.callback;
-    googleTokenClient.callback = tokenResponse => {
+    googleTokenClient.callback = async tokenResponse => {
       googleTokenClient.callback = previousCallback;
       googleRequestInFlight = null;
 
