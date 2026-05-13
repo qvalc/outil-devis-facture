@@ -3676,11 +3676,8 @@ function renderDocumentPage(docKey) {
                 <div class="toolbar-menu" data-menu-root>
                   <button class="button-icon" type="button" title="Plus d’actions" onclick="toggleToolbarMenu(event, 'more-menu-${docKey}')">⋯</button>
                   <div class="menu-panel" id="more-menu-${docKey}">
-                    ${docKey === 'invoice' ? `<button type="button" onclick="setInvoiceStatus('sent'); closeToolbarMenus();">Marquer envoyée</button>
-                    <button type="button" onclick="setInvoiceStatus('paid'); closeToolbarMenus();">Marquer payée</button>
-                    <button type="button" onclick="createCreditNoteFromInvoice(); closeToolbarMenus();">Créer une note de crédit</button>
-                    <button type="button" onclick="cancelInvoice(); closeToolbarMenus();" class="danger-ghost">Annuler la facture</button>` : ''}
-                    <button type="button" onclick="resetDocumentLocal('${docKey}'); closeToolbarMenus();" class="danger-ghost">Nouveau ${isQuote ? 'devis' : (isReminder ? 'rappel' : 'facture')}</button>
+                    ${docKey === 'invoice' ? `<button type="button" onclick="createCreditNoteFromInvoice(); closeToolbarMenus();">Créer une note de crédit</button>` : ''}
+<button type="button" onclick="resetDocumentLocal('${docKey}'); closeToolbarMenus();" class="danger-ghost">Nouveau document</button>
                   </div>
                 </div>
               </div>
