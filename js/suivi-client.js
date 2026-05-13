@@ -1,501 +1,501 @@
 // BastCompta - module Suivi client
 
 const STORAGE_KEY = 'bastcompta-chantiers-v1';
-    const DRIVE_SYNC_FILE_NAME = 'bastcompta-chantiers-sync.json';
-    const DEVIS_FACTURE_STORAGE_KEY = 'devis-facture-style-vrai-document';
-    const CRM_DRIVE_SYNC_FILE_NAME = 'bastcompta-crm-sync.json';
-    const CRM_DELETED_CLIENTS_STORAGE_KEY = 'bastcompta-crm-deleted-clients-v1';
+const DRIVE_SYNC_FILE_NAME = 'bastcompta-chantiers-sync.json';
+const DEVIS_FACTURE_STORAGE_KEY = 'devis-facture-style-vrai-document';
+const CRM_DRIVE_SYNC_FILE_NAME = 'bastcompta-crm-sync.json';
+const CRM_DELETED_CLIENTS_STORAGE_KEY = 'bastcompta-crm-deleted-clients-v1';
 
-    let googleAccessToken = null;
-    let selectedProjectId = '';
-    let activeTab = 'summary';
-    let editingProjectId = '';
-    let data = loadData();
-    let crmDriveClientsCache = [];
-    let crmDropdownClientsCache = [];
+let googleAccessToken = null;
+let selectedProjectId = '';
+let activeTab = 'summary';
+let editingProjectId = '';
+let data = loadData();
+let crmDriveClientsCache = [];
+let crmDropdownClientsCache = [];
 
-    const statusLabels = {
-      planned: 'À suivre',
-      active: 'Actif',
-      waiting: 'En attente',
-      closed: 'Archivé',
-      cancelled: 'Annulé'
-    };
+const statusLabels = {
+  planned: 'À suivre',
+  active: 'Actif',
+  waiting: 'En attente',
+  closed: 'Archivé',
+  cancelled: 'Annulé'
+};
 
-    const statusClasses = {
-      planned: 'planned',
-      active: 'active',
-      waiting: 'waiting',
-      closed: 'closed',
-      cancelled: 'danger'
-    };
+const statusClasses = {
+  planned: 'planned',
+  active: 'active',
+  waiting: 'waiting',
+  closed: 'closed',
+  cancelled: 'danger'
+};
 
-    function uid(prefix = 'id') {
-      return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+function uid(prefix = 'id') {
+  return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function nowLabel() {
+  return new Date().toLocaleString('fr-BE');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  }[char]));
+}
+
+function formatMoney(value) {
+  return new Intl.NumberFormat('fr-BE', { style: 'currency', currency: 'EUR' }).format(Number(value) || 0);
+}
+
+function formatDate(value) {
+  if (!value) return '—';
+  try {
+    return new Date(value + 'T00:00:00').toLocaleDateString('fr-BE');
+  } catch {
+    return value;
+  }
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { version: 1, projects: [] };
+    const parsed = JSON.parse(raw);
+    return normalizeData(parsed);
+  } catch {
+    return { version: 1, projects: [] };
+  }
+}
+
+function normalizeData(source) {
+  const base = { version: 2, projects: [] };
+  const merged = Object.assign(base, source || {});
+  const normalized = Array.isArray(merged.projects) ? merged.projects.map(normalizeProject) : [];
+  merged.projects = mergeProjectsByClient(normalized);
+  return merged;
+}
+
+function clientGlobalKey(project) {
+  const clientId = String(project?.clientId || '').trim();
+  const clientRef = String(project?.clientRef || '').trim();
+  const clientName = String(project?.clientName || project?.title || '').trim();
+  if (clientId) return 'id:' + clientId;
+  if (clientRef) return 'ref:' + normalizeLinkKey(clientRef);
+  return 'name:' + normalizeLinkKey(clientName);
+}
+
+function dedupeMoneyList(list) {
+  const byKey = new Map();
+  (Array.isArray(list) ? list : []).forEach(item => {
+    const key = String(item.documentUid || item.id || item.ref || '').trim();
+    if (!key) return;
+    byKey.set(key, Object.assign({}, byKey.get(key) || {}, item, { documentUid: item.documentUid || item.id || key }));
+  });
+  return Array.from(byKey.values()).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+}
+
+function mergeProjectsByClient(projects) {
+  const map = new Map();
+  projects.forEach(project => {
+    const key = clientGlobalKey(project);
+    if (!key || key === 'name:') return;
+    if (!map.has(key)) {
+      map.set(key, project);
+      return;
     }
+    const target = map.get(key);
+    target.title = target.clientName || target.title || project.clientName || project.title || '';
+    target.clientId = target.clientId || project.clientId || '';
+    target.clientName = target.clientName || project.clientName || project.title || '';
+    target.clientRef = target.clientRef || project.clientRef || '';
+    target.address = target.address || project.address || '';
+    target.description = [target.description, project.description].filter(Boolean).join(target.description && project.description ? '\n' : '');
+    target.startDate = [target.startDate, project.startDate].filter(Boolean).sort()[0] || '';
+    target.endDate = target.endDate || project.endDate || '';
+    target.createdAt = [target.createdAt, project.createdAt].filter(Boolean).sort()[0] || new Date().toISOString();
+    target.updatedAt = [target.updatedAt, project.updatedAt].filter(Boolean).sort().pop() || new Date().toISOString();
+    target.linkedQuotes = dedupeMoneyList([...(target.linkedQuotes || []), ...(project.linkedQuotes || [])]);
+    target.linkedInvoices = dedupeMoneyList([...(target.linkedInvoices || []), ...(project.linkedInvoices || [])]);
+    target.linkedReminders = dedupeMoneyList([...(target.linkedReminders || []), ...(project.linkedReminders || [])]);
+    target.costs = dedupeMoneyList([...(target.costs || []), ...(project.costs || [])]);
+    target.documents = dedupeMoneyList([...(target.documents || []), ...(project.documents || [])]);
+    target.tasks = [...(target.tasks || []), ...(project.tasks || [])];
+    target.notes = [...(target.notes || []), ...(project.notes || [])];
+    target.timeline = [...(target.timeline || []), ...(project.timeline || [])].slice(0, 120);
+  });
+  return Array.from(map.values());
+}
 
-    function todayISO() {
-      return new Date().toISOString().slice(0, 10);
-    }
-
-    function nowLabel() {
-      return new Date().toLocaleString('fr-BE');
-    }
-
-    function escapeHtml(value) {
-      return String(value ?? '').replace(/[&<>"']/g, char => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-      }[char]));
-    }
-
-    function formatMoney(value) {
-      return new Intl.NumberFormat('fr-BE', { style: 'currency', currency: 'EUR' }).format(Number(value) || 0);
-    }
-
-    function formatDate(value) {
-      if (!value) return '—';
-      try {
-        return new Date(value + 'T00:00:00').toLocaleDateString('fr-BE');
-      } catch {
-        return value;
-      }
-    }
-
-    function loadData() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { version: 1, projects: [] };
-        const parsed = JSON.parse(raw);
-        return normalizeData(parsed);
-      } catch {
-        return { version: 1, projects: [] };
-      }
-    }
-
-    function normalizeData(source) {
-      const base = { version: 2, projects: [] };
-      const merged = Object.assign(base, source || {});
-      const normalized = Array.isArray(merged.projects) ? merged.projects.map(normalizeProject) : [];
-      merged.projects = mergeProjectsByClient(normalized);
-      return merged;
-    }
-
-    function clientGlobalKey(project) {
-      const clientId = String(project?.clientId || '').trim();
-      const clientRef = String(project?.clientRef || '').trim();
-      const clientName = String(project?.clientName || project?.title || '').trim();
-      if (clientId) return 'id:' + clientId;
-      if (clientRef) return 'ref:' + normalizeLinkKey(clientRef);
-      return 'name:' + normalizeLinkKey(clientName);
-    }
-
-    function dedupeMoneyList(list) {
-      const byKey = new Map();
-      (Array.isArray(list) ? list : []).forEach(item => {
-        const key = String(item.documentUid || item.id || item.ref || '').trim();
-        if (!key) return;
-        byKey.set(key, Object.assign({}, byKey.get(key) || {}, item, { documentUid: item.documentUid || item.id || key }));
-      });
-      return Array.from(byKey.values()).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-    }
-
-    function mergeProjectsByClient(projects) {
-      const map = new Map();
-      projects.forEach(project => {
-        const key = clientGlobalKey(project);
-        if (!key || key === 'name:') return;
-        if (!map.has(key)) {
-          map.set(key, project);
-          return;
-        }
-        const target = map.get(key);
-        target.title = target.clientName || target.title || project.clientName || project.title || '';
-        target.clientId = target.clientId || project.clientId || '';
-        target.clientName = target.clientName || project.clientName || project.title || '';
-        target.clientRef = target.clientRef || project.clientRef || '';
-        target.address = target.address || project.address || '';
-        target.description = [target.description, project.description].filter(Boolean).join(target.description && project.description ? '\n' : '');
-        target.startDate = [target.startDate, project.startDate].filter(Boolean).sort()[0] || '';
-        target.endDate = target.endDate || project.endDate || '';
-        target.createdAt = [target.createdAt, project.createdAt].filter(Boolean).sort()[0] || new Date().toISOString();
-        target.updatedAt = [target.updatedAt, project.updatedAt].filter(Boolean).sort().pop() || new Date().toISOString();
-        target.linkedQuotes = dedupeMoneyList([...(target.linkedQuotes || []), ...(project.linkedQuotes || [])]);
-        target.linkedInvoices = dedupeMoneyList([...(target.linkedInvoices || []), ...(project.linkedInvoices || [])]);
-        target.linkedReminders = dedupeMoneyList([...(target.linkedReminders || []), ...(project.linkedReminders || [])]);
-        target.costs = dedupeMoneyList([...(target.costs || []), ...(project.costs || [])]);
-        target.documents = dedupeMoneyList([...(target.documents || []), ...(project.documents || [])]);
-        target.tasks = [...(target.tasks || []), ...(project.tasks || [])];
-        target.notes = [...(target.notes || []), ...(project.notes || [])];
-        target.timeline = [...(target.timeline || []), ...(project.timeline || [])].slice(0, 120);
-      });
-      return Array.from(map.values());
-    }
-
-    function normalizeProject(project) {
-      const clientName = project.clientName || project.title || '';
-      return {
-        id: project.id || uid('client'),
-        title: clientName,
-        clientId: project.clientId || '',
-        clientName,
-        clientRef: project.clientRef || '',
-        address: project.address || '',
-        description: project.description || '',
-        status: project.status || 'planned',
-        startDate: project.startDate || '',
-        endDate: project.endDate || '',
-        createdAt: project.createdAt || new Date().toISOString(),
-        updatedAt: project.updatedAt || new Date().toISOString(),
-        quoteAmount: Number(project.quoteAmount) || 0,
-        linkedQuotes: dedupeMoneyList(project.linkedQuotes),
-        linkedInvoices: dedupeMoneyList(project.linkedInvoices),
-        linkedReminders: dedupeMoneyList(project.linkedReminders),
-        costs: dedupeMoneyList(project.costs),
-        documents: Array.isArray(project.documents) ? project.documents : [],
-        tasks: Array.isArray(project.tasks) ? project.tasks : [],
-        notes: Array.isArray(project.notes) ? project.notes : [],
-        timeline: Array.isArray(project.timeline) ? project.timeline : []
-      };
-    }
+function normalizeProject(project) {
+  const clientName = project.clientName || project.title || '';
+  return {
+    id: project.id || uid('client'),
+    title: clientName,
+    clientId: project.clientId || '',
+    clientName,
+    clientRef: project.clientRef || '',
+    address: project.address || '',
+    description: project.description || '',
+    status: project.status || 'planned',
+    startDate: project.startDate || '',
+    endDate: project.endDate || '',
+    createdAt: project.createdAt || new Date().toISOString(),
+    updatedAt: project.updatedAt || new Date().toISOString(),
+    quoteAmount: Number(project.quoteAmount) || 0,
+    linkedQuotes: dedupeMoneyList(project.linkedQuotes),
+    linkedInvoices: dedupeMoneyList(project.linkedInvoices),
+    linkedReminders: dedupeMoneyList(project.linkedReminders),
+    costs: dedupeMoneyList(project.costs),
+    documents: Array.isArray(project.documents) ? project.documents : [],
+    tasks: Array.isArray(project.tasks) ? project.tasks : [],
+    notes: Array.isArray(project.notes) ? project.notes : [],
+    timeline: Array.isArray(project.timeline) ? project.timeline : []
+  };
+}
 
 
-    function readFullCrmDataFromLocalStorage() {
-      try {
-        const raw = localStorage.getItem(DEVIS_FACTURE_STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : {};
-        if (!parsed || typeof parsed !== 'object') return { clients: [] };
-        if (!Array.isArray(parsed.clients)) parsed.clients = [];
-        return parsed;
-      } catch (error) {
-        console.warn('Lecture CRM locale impossible.', error);
-        return { clients: [] };
-      }
-    }
+function readFullCrmDataFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(DEVIS_FACTURE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== 'object') return { clients: [] };
+    if (!Array.isArray(parsed.clients)) parsed.clients = [];
+    return parsed;
+  } catch (error) {
+    console.warn('Lecture CRM locale impossible.', error);
+    return { clients: [] };
+  }
+}
 
-    function writeFullCrmDataToLocalStorage(crmData) {
-      const payload = crmData && typeof crmData === 'object' ? crmData : { clients: [] };
-      if (!Array.isArray(payload.clients)) payload.clients = [];
-      localStorage.setItem(DEVIS_FACTURE_STORAGE_KEY, JSON.stringify(payload, null, 2));
-      localStorage.setItem(DEVIS_FACTURE_STORAGE_KEY + '-last-save', new Date().toISOString());
-    }
+function writeFullCrmDataToLocalStorage(crmData) {
+  const payload = crmData && typeof crmData === 'object' ? crmData : { clients: [] };
+  if (!Array.isArray(payload.clients)) payload.clients = [];
+  localStorage.setItem(DEVIS_FACTURE_STORAGE_KEY, JSON.stringify(payload, null, 2));
+  localStorage.setItem(DEVIS_FACTURE_STORAGE_KEY + '-last-save', new Date().toISOString());
+}
 
-    function normalizeClientEmail(email) {
-      return String(email || '').trim().replace(/[;,\s]+$/g, '');
-    }
+function normalizeClientEmail(email) {
+  return String(email || '').trim().replace(/[;,\s]+$/g, '');
+}
 
-    function normalizeCrmClient(client = {}) {
-      const name = String(client.name || client.clientName || '').trim();
-      if (!name) return null;
-      const ref = String(client.clientNumber || client.clientRef || '').trim();
-      const email = normalizeClientEmail(client.email || client.clientEmail || '');
-      return {
-        id: String(client.id || client.clientId || '').trim(),
-        name,
-        clientName: name,
-        clientNumber: ref,
-        clientRef: ref,
-        email,
-        clientEmail: email,
-        address: client.address || '',
-        vat: client.vat || client.clientVat || '',
-        clientVat: client.clientVat || client.vat || '',
-        phone: client.phone || '',
-        contact: client.contact || '',
-        notes: client.notes || client.description || '',
-        favorite: !!client.favorite,
-        createdAt: client.createdAt || new Date().toISOString(),
-        updatedAt: client.updatedAt || '',
-        source: client.source || 'CRM'
-      };
-    }
+function normalizeCrmClient(client = {}) {
+  const name = String(client.name || client.clientName || '').trim();
+  if (!name) return null;
+  const ref = String(client.clientNumber || client.clientRef || '').trim();
+  const email = normalizeClientEmail(client.email || client.clientEmail || '');
+  return {
+    id: String(client.id || client.clientId || '').trim(),
+    name,
+    clientName: name,
+    clientNumber: ref,
+    clientRef: ref,
+    email,
+    clientEmail: email,
+    address: client.address || '',
+    vat: client.vat || client.clientVat || '',
+    clientVat: client.clientVat || client.vat || '',
+    phone: client.phone || '',
+    contact: client.contact || '',
+    notes: client.notes || client.description || '',
+    favorite: !!client.favorite,
+    createdAt: client.createdAt || new Date().toISOString(),
+    updatedAt: client.updatedAt || '',
+    source: client.source || 'CRM'
+  };
+}
 
-    function crmClientKey(client = {}) {
-      const id = String(client.id || client.clientId || '').trim();
-      const ref = String(client.clientNumber || client.clientRef || '').trim();
-      const name = normalizeLinkKey(client.name || client.clientName || '');
-      if (id) return 'id:' + id;
-      if (ref) return 'ref:' + normalizeLinkKey(ref);
-      return 'name:' + name;
-    }
+function crmClientKey(client = {}) {
+  const id = String(client.id || client.clientId || '').trim();
+  const ref = String(client.clientNumber || client.clientRef || '').trim();
+  const name = normalizeLinkKey(client.name || client.clientName || '');
+  if (id) return 'id:' + id;
+  if (ref) return 'ref:' + normalizeLinkKey(ref);
+  return 'name:' + name;
+}
 
-    function readDeletedCrmClientKeys() {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(CRM_DELETED_CLIENTS_STORAGE_KEY) || '[]');
-        return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-      } catch {
-        return [];
-      }
-    }
+function readDeletedCrmClientKeys() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CRM_DELETED_CLIENTS_STORAGE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
 
-    function writeDeletedCrmClientKeys(keys) {
-      const unique = Array.from(new Set((Array.isArray(keys) ? keys : []).filter(Boolean)));
-      localStorage.setItem(CRM_DELETED_CLIENTS_STORAGE_KEY, JSON.stringify(unique));
-    }
+function writeDeletedCrmClientKeys(keys) {
+  const unique = Array.from(new Set((Array.isArray(keys) ? keys : []).filter(Boolean)));
+  localStorage.setItem(CRM_DELETED_CLIENTS_STORAGE_KEY, JSON.stringify(unique));
+}
 
-    function crmClientMatchKeys(client = {}) {
-      const normalized = normalizeCrmClient(client) || client || {};
-      const keys = [crmClientKey(normalized)];
-      const id = String(normalized.id || normalized.clientId || '').trim();
-      const ref = String(normalized.clientNumber || normalized.clientRef || '').trim();
-      const name = normalizeLinkKey(normalized.name || normalized.clientName || '');
-      const email = normalizeClientEmail(normalized.email || normalized.clientEmail || '').toLowerCase();
-      if (id) keys.push('id:' + id);
-      if (ref) keys.push('ref:' + normalizeLinkKey(ref));
-      if (name) keys.push('name:' + name);
-      if (email) keys.push('email:' + email);
-      return Array.from(new Set(keys.filter(Boolean)));
-    }
+function crmClientMatchKeys(client = {}) {
+  const normalized = normalizeCrmClient(client) || client || {};
+  const keys = [crmClientKey(normalized)];
+  const id = String(normalized.id || normalized.clientId || '').trim();
+  const ref = String(normalized.clientNumber || normalized.clientRef || '').trim();
+  const name = normalizeLinkKey(normalized.name || normalized.clientName || '');
+  const email = normalizeClientEmail(normalized.email || normalized.clientEmail || '').toLowerCase();
+  if (id) keys.push('id:' + id);
+  if (ref) keys.push('ref:' + normalizeLinkKey(ref));
+  if (name) keys.push('name:' + name);
+  if (email) keys.push('email:' + email);
+  return Array.from(new Set(keys.filter(Boolean)));
+}
 
-    function isCrmClientDeleted(client = {}) {
-      const deleted = new Set(readDeletedCrmClientKeys());
-      return crmClientMatchKeys(client).some(key => deleted.has(key));
-    }
+function isCrmClientDeleted(client = {}) {
+  const deleted = new Set(readDeletedCrmClientKeys());
+  return crmClientMatchKeys(client).some(key => deleted.has(key));
+}
 
-    function rememberDeletedCrmClient(client = {}) {
-      writeDeletedCrmClientKeys([...readDeletedCrmClientKeys(), ...crmClientMatchKeys(client)]);
-    }
+function rememberDeletedCrmClient(client = {}) {
+  writeDeletedCrmClientKeys([...readDeletedCrmClientKeys(), ...crmClientMatchKeys(client)]);
+}
 
-    function forgetDeletedCrmClient(client = {}) {
-      const keys = new Set(crmClientMatchKeys(client));
-      writeDeletedCrmClientKeys(readDeletedCrmClientKeys().filter(key => !keys.has(key)));
-    }
+function forgetDeletedCrmClient(client = {}) {
+  const keys = new Set(crmClientMatchKeys(client));
+  writeDeletedCrmClientKeys(readDeletedCrmClientKeys().filter(key => !keys.has(key)));
+}
 
-    function filterDeletedCrmClients(clients = []) {
-      return (Array.isArray(clients) ? clients : []).filter(client => !isCrmClientDeleted(client));
-    }
+function filterDeletedCrmClients(clients = []) {
+  return (Array.isArray(clients) ? clients : []).filter(client => !isCrmClientDeleted(client));
+}
 
-    function mergeCrmClientLists(...lists) {
-      const map = new Map();
-      lists.flat().forEach(raw => {
-        const client = normalizeCrmClient(raw);
-        if (!client) return;
-        const key = crmClientKey(client);
-        if (!key || key === 'name:') return;
-        const previous = map.get(key) || {};
-        map.set(key, {
-          ...client,
-          ...previous,
-          id: previous.id || client.id,
-          name: previous.name || client.name,
-          clientName: previous.clientName || client.clientName || client.name,
-          clientNumber: previous.clientNumber || client.clientNumber,
-          clientRef: previous.clientRef || client.clientRef || client.clientNumber,
-          email: previous.email || client.email,
-          clientEmail: previous.clientEmail || client.clientEmail || client.email,
-          address: previous.address || client.address,
-          vat: previous.vat || client.vat,
-          clientVat: previous.clientVat || client.clientVat || client.vat,
-          phone: previous.phone || client.phone,
-          contact: previous.contact || client.contact,
-          notes: previous.notes || client.notes,
-          favorite: !!(previous.favorite || client.favorite),
-          source: previous.source || client.source || 'CRM'
-        });
-      });
-      return Array.from(map.values()).sort((a, b) => {
-        if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
-        const byNumber = String(a.clientNumber || '999999').localeCompare(String(b.clientNumber || '999999'), 'fr', { numeric: true, sensitivity: 'base' });
-        if (byNumber !== 0) return byNumber;
-        return String(a.name || '').localeCompare(String(b.name || ''), 'fr', { sensitivity: 'base' });
-      });
-    }
+function mergeCrmClientLists(...lists) {
+  const map = new Map();
+  lists.flat().forEach(raw => {
+    const client = normalizeCrmClient(raw);
+    if (!client) return;
+    const key = crmClientKey(client);
+    if (!key || key === 'name:') return;
+    const previous = map.get(key) || {};
+    map.set(key, {
+      ...client,
+      ...previous,
+      id: previous.id || client.id,
+      name: previous.name || client.name,
+      clientName: previous.clientName || client.clientName || client.name,
+      clientNumber: previous.clientNumber || client.clientNumber,
+      clientRef: previous.clientRef || client.clientRef || client.clientNumber,
+      email: previous.email || client.email,
+      clientEmail: previous.clientEmail || client.clientEmail || client.email,
+      address: previous.address || client.address,
+      vat: previous.vat || client.vat,
+      clientVat: previous.clientVat || client.clientVat || client.vat,
+      phone: previous.phone || client.phone,
+      contact: previous.contact || client.contact,
+      notes: previous.notes || client.notes,
+      favorite: !!(previous.favorite || client.favorite),
+      source: previous.source || client.source || 'CRM'
+    });
+  });
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+    const byNumber = String(a.clientNumber || '999999').localeCompare(String(b.clientNumber || '999999'), 'fr', { numeric: true, sensitivity: 'base' });
+    if (byNumber !== 0) return byNumber;
+    return String(a.name || '').localeCompare(String(b.name || ''), 'fr', { sensitivity: 'base' });
+  });
+}
 
-    function readCrmClientsFromLocalStorage() {
-      const parsed = readFullCrmDataFromLocalStorage();
-      return Array.isArray(parsed.clients) ? parsed.clients : [];
-    }
+function readCrmClientsFromLocalStorage() {
+  const parsed = readFullCrmDataFromLocalStorage();
+  return Array.isArray(parsed.clients) ? parsed.clients : [];
+}
 
-    function getAllCrmClients() {
-      return filterDeletedCrmClients(mergeCrmClientLists(readCrmClientsFromLocalStorage(), crmDriveClientsCache));
-    }
+function getAllCrmClients() {
+  return filterDeletedCrmClients(mergeCrmClientLists(readCrmClientsFromLocalStorage(), crmDriveClientsCache));
+}
 
-    function findCrmClientForProject(project) {
-      if (!project) return null;
-      const candidates = getAllCrmClients();
-      const projectKeys = [
-        project.clientId ? 'id:' + String(project.clientId).trim() : '',
-        project.clientRef ? 'ref:' + normalizeLinkKey(project.clientRef) : '',
-        (project.clientName || project.title) ? 'name:' + normalizeLinkKey(project.clientName || project.title) : ''
-      ].filter(Boolean);
-      return candidates.find(client => projectKeys.includes(crmClientKey(client))) || null;
-    }
+function findCrmClientForProject(project) {
+  if (!project) return null;
+  const candidates = getAllCrmClients();
+  const projectKeys = [
+    project.clientId ? 'id:' + String(project.clientId).trim() : '',
+    project.clientRef ? 'ref:' + normalizeLinkKey(project.clientRef) : '',
+    (project.clientName || project.title) ? 'name:' + normalizeLinkKey(project.clientName || project.title) : ''
+  ].filter(Boolean);
+  return candidates.find(client => projectKeys.includes(crmClientKey(client))) || null;
+}
 
-    function hydrateProjectWithCrm(project) {
-      if (!project) return null;
-      const crm = findCrmClientForProject(project);
-      if (!crm) return project;
-      return {
-        ...project,
-        title: crm.name || project.title,
-        clientId: crm.id || project.clientId,
-        clientName: crm.name || project.clientName || project.title,
-        clientRef: crm.clientNumber || crm.clientRef || project.clientRef,
-        email: crm.email || project.email,
-        clientEmail: crm.clientEmail || crm.email || project.clientEmail,
-        vat: crm.vat || project.vat,
-        clientVat: crm.clientVat || crm.vat || project.clientVat,
-        phone: crm.phone || project.phone,
-        contact: crm.contact || project.contact,
-        address: crm.address || project.address,
-        description: crm.notes || project.description,
-        favorite: !!crm.favorite,
-        crmSource: crm.source || 'CRM'
-      };
-    }
+function hydrateProjectWithCrm(project) {
+  if (!project) return null;
+  const crm = findCrmClientForProject(project);
+  if (!crm) return project;
+  return {
+    ...project,
+    title: crm.name || project.title,
+    clientId: crm.id || project.clientId,
+    clientName: crm.name || project.clientName || project.title,
+    clientRef: crm.clientNumber || crm.clientRef || project.clientRef,
+    email: crm.email || project.email,
+    clientEmail: crm.clientEmail || crm.email || project.clientEmail,
+    vat: crm.vat || project.vat,
+    clientVat: crm.clientVat || crm.vat || project.clientVat,
+    phone: crm.phone || project.phone,
+    contact: crm.contact || project.contact,
+    address: crm.address || project.address,
+    description: crm.notes || project.description,
+    favorite: !!crm.favorite,
+    crmSource: crm.source || 'CRM'
+  };
+}
 
-    function syncProjectIdentityFromCrm(project, crmClient) {
-      const crm = normalizeCrmClient(crmClient);
-      if (!project || !crm) return project;
-      project.clientId = crm.id || project.clientId || '';
-      project.title = crm.name;
-      project.clientName = crm.name;
-      project.clientRef = crm.clientNumber || crm.clientRef || '';
-      project.email = crm.email || '';
-      project.clientEmail = crm.clientEmail || crm.email || '';
-      project.vat = crm.vat || '';
-      project.clientVat = crm.clientVat || crm.vat || '';
-      project.phone = crm.phone || '';
-      project.contact = crm.contact || '';
-      project.address = crm.address || '';
-      project.description = crm.notes || project.description || '';
-      project.updatedAt = new Date().toISOString();
-      return project;
-    }
+function syncProjectIdentityFromCrm(project, crmClient) {
+  const crm = normalizeCrmClient(crmClient);
+  if (!project || !crm) return project;
+  project.clientId = crm.id || project.clientId || '';
+  project.title = crm.name;
+  project.clientName = crm.name;
+  project.clientRef = crm.clientNumber || crm.clientRef || '';
+  project.email = crm.email || '';
+  project.clientEmail = crm.clientEmail || crm.email || '';
+  project.vat = crm.vat || '';
+  project.clientVat = crm.clientVat || crm.vat || '';
+  project.phone = crm.phone || '';
+  project.contact = crm.contact || '';
+  project.address = crm.address || '';
+  project.description = crm.notes || project.description || '';
+  project.updatedAt = new Date().toISOString();
+  return project;
+}
 
-    function getOrCreateProjectForCrmClient(crmClient) {
-      const crm = normalizeCrmClient(crmClient);
-      if (!crm) return null;
-      const key = crmClientKey(crm);
-      let project = data.projects.find(item => {
-        const itemKey = clientGlobalKey(item);
-        const altKeys = [
-          item.clientId ? 'id:' + String(item.clientId).trim() : '',
-          item.clientRef ? 'ref:' + normalizeLinkKey(item.clientRef) : '',
-          item.clientName ? 'name:' + normalizeLinkKey(item.clientName) : ''
-        ];
-        return itemKey === key || altKeys.includes(key);
-      });
-      if (!project) {
-        project = normalizeProject({
-          id: uid('suivi'),
-          status: 'planned',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          timeline: [{ id: uid('evt'), date: new Date().toISOString(), text: 'Fiche de suivi créée depuis le CRM.' }]
-        });
-        data.projects.unshift(project);
-      }
-      syncProjectIdentityFromCrm(project, crm);
-      return project;
-    }
+function getOrCreateProjectForCrmClient(crmClient) {
+  const crm = normalizeCrmClient(crmClient);
+  if (!crm) return null;
+  const key = crmClientKey(crm);
+  let project = data.projects.find(item => {
+    const itemKey = clientGlobalKey(item);
+    const altKeys = [
+      item.clientId ? 'id:' + String(item.clientId).trim() : '',
+      item.clientRef ? 'ref:' + normalizeLinkKey(item.clientRef) : '',
+      item.clientName ? 'name:' + normalizeLinkKey(item.clientName) : ''
+    ];
+    return itemKey === key || altKeys.includes(key);
+  });
+  if (!project) {
+    project = normalizeProject({
+      id: uid('suivi'),
+      status: 'planned',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      timeline: [{ id: uid('evt'), date: new Date().toISOString(), text: 'Fiche de suivi créée depuis le CRM.' }]
+    });
+    data.projects.unshift(project);
+  }
+  syncProjectIdentityFromCrm(project, crm);
+  return project;
+}
 
-    function renderCrmClientDropdown() {
-      const select = document.getElementById('crmClientSelect');
-      if (!select) return;
-      const previous = select.value;
-      const search = document.getElementById('searchInput')?.value?.trim().toLowerCase() || '';
-      const allClients = getAllCrmClients();
-      const clients = allClients.filter(client => {
-        const haystack = [client.clientNumber, client.name, client.email, client.phone, client.address, client.vat].join(' ').toLowerCase();
-        return !search || haystack.includes(search);
-      });
-      crmDropdownClientsCache = clients;
-      select.innerHTML = '<option value="">Choisir un client du CRM...</option>' + clients.map(client => {
-        const key = crmClientKey(client);
-        const label = [client.clientNumber ? 'N° ' + client.clientNumber : '', client.name, client.email || client.address || ''].filter(Boolean).join(' · ');
-        return `<option value="${escapeAttr(key)}">${escapeHtml(label)}</option>`;
-      }).join('');
-      if (previous && clients.some(client => crmClientKey(client) === previous)) select.value = previous;
-    }
+function renderCrmClientDropdown() {
+  const select = document.getElementById('crmClientSelect');
+  if (!select) return;
+  const previous = select.value;
+  const search = document.getElementById('searchInput')?.value?.trim().toLowerCase() || '';
+  const allClients = getAllCrmClients();
+  const clients = allClients.filter(client => {
+    const haystack = [client.clientNumber, client.name, client.email, client.phone, client.address, client.vat].join(' ').toLowerCase();
+    return !search || haystack.includes(search);
+  });
+  crmDropdownClientsCache = clients;
+  select.innerHTML = '<option value="">Choisir un client du CRM...</option>' + clients.map(client => {
+    const key = crmClientKey(client);
+    const label = [client.clientNumber ? 'N° ' + client.clientNumber : '', client.name, client.email || client.address || ''].filter(Boolean).join(' · ');
+    return `<option value="${escapeAttr(key)}">${escapeHtml(label)}</option>`;
+  }).join('');
+  if (previous && clients.some(client => crmClientKey(client) === previous)) select.value = previous;
+}
 
-    async function openCrmClientFromSelect() {
-      const select = document.getElementById('crmClientSelect');
-      const key = select?.value || '';
-      if (!key) return;
-      const client = crmDropdownClientsCache.find(item => crmClientKey(item) === key) || getAllCrmClients().find(item => crmClientKey(item) === key);
-      if (!client) return;
-      const project = getOrCreateProjectForCrmClient(client);
-      if (!project) return;
-      selectedProjectId = project.id;
-      activeTab = 'summary';
-      await saveData(false);
-      await autoLoadClientDocuments(false);
-      render();
-    }
+async function openCrmClientFromSelect() {
+  const select = document.getElementById('crmClientSelect');
+  const key = select?.value || '';
+  if (!key) return;
+  const client = crmDropdownClientsCache.find(item => crmClientKey(item) === key) || getAllCrmClients().find(item => crmClientKey(item) === key);
+  if (!client) return;
+  const project = getOrCreateProjectForCrmClient(client);
+  if (!project) return;
+  selectedProjectId = project.id;
+  activeTab = 'summary';
+  await saveData(false);
+  await autoLoadClientDocuments(false);
+  render();
+}
 
-    async function saveCrmDataToDrive(crmData, showToast = false) {
-      if (!googleAccessToken) return false;
-      try {
-        const content = JSON.stringify(crmData, null, 2);
-        const metadata = { name: CRM_DRIVE_SYNC_FILE_NAME, mimeType: 'application/json', parents: ['appDataFolder'] };
-        const list = await driveFilesList({
-          spaces: 'appDataFolder',
-          q: `name='${CRM_DRIVE_SYNC_FILE_NAME}' and trashed=false`,
-          fields: 'files(id,name,modifiedTime)'
-        }, false);
-        const existing = list?.result?.files?.[0];
-        const boundary = '-------bastcompta-crm-' + Date.now();
-        const body = existing
-          ? content
-          : `${boundary ? '--' + boundary : ''}\nContent-Type: application/json; charset=UTF-8\n\n${JSON.stringify(metadata)}\n--${boundary}\nContent-Type: application/json\n\n${content}\n--${boundary}--`;
-        const response = await fetch(existing
-          ? `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=media`
-          : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-          method: existing ? 'PATCH' : 'POST',
-          headers: existing
-            ? { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json' }
-            : { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
-          body
-        });
-        if (!response.ok) throw new Error('Drive CRM status ' + response.status);
-        if (showToast) notify('CRM sauvegardé localement et sur Google Drive.');
-        return true;
-      } catch (error) {
-        console.warn('Sauvegarde CRM Drive ignorée.', error);
-        if (showToast) notify('CRM sauvegardé localement. Google Drive non disponible pour le moment.');
-        return false;
-      }
-    }
+async function saveCrmDataToDrive(crmData, showToast = false) {
+  if (!googleAccessToken) return false;
+  try {
+    const content = JSON.stringify(crmData, null, 2);
+    const metadata = { name: CRM_DRIVE_SYNC_FILE_NAME, mimeType: 'application/json', parents: ['appDataFolder'] };
+    const list = await driveFilesList({
+      spaces: 'appDataFolder',
+      q: `name='${CRM_DRIVE_SYNC_FILE_NAME}' and trashed=false`,
+      fields: 'files(id,name,modifiedTime)'
+    }, false);
+    const existing = list?.result?.files?.[0];
+    const boundary = '-------bastcompta-crm-' + Date.now();
+    const body = existing
+      ? content
+      : `${boundary ? '--' + boundary : ''}\nContent-Type: application/json; charset=UTF-8\n\n${JSON.stringify(metadata)}\n--${boundary}\nContent-Type: application/json\n\n${content}\n--${boundary}--`;
+    const response = await fetch(existing
+      ? `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=media`
+      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: existing ? 'PATCH' : 'POST',
+      headers: existing
+        ? { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json' }
+        : { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+    if (!response.ok) throw new Error('Drive CRM status ' + response.status);
+    if (showToast) notify('CRM sauvegardé localement et sur Google Drive.');
+    return true;
+  } catch (error) {
+    console.warn('Sauvegarde CRM Drive ignorée.', error);
+    if (showToast) notify('CRM sauvegardé localement. Google Drive non disponible pour le moment.');
+    return false;
+  }
+}
 
-    async function refreshCrmClientDropdown(showToast = false) {
-      if (googleAccessToken) {
-        try {
-          const list = await driveFilesList({
-            spaces: 'appDataFolder',
-            q: `name='${CRM_DRIVE_SYNC_FILE_NAME}' and trashed=false`,
-            fields: 'files(id,name,modifiedTime)'
-          }, false);
-          const file = list?.result?.files?.[0];
-          if (file) {
-            const parsed = await fetchDriveJson(file.id);
-            const driveClients = Array.isArray(parsed?.clients) ? parsed.clients.map(client => ({ ...client, source: 'CRM Drive' })) : [];
-            const filteredDriveClients = filterDeletedCrmClients(driveClients);
-            crmDriveClientsCache = filteredDriveClients;
-            if (driveClients.length !== filteredDriveClients.length && parsed && typeof parsed === 'object') {
-              parsed.clients = filteredDriveClients;
-              await saveCrmDataToDrive(parsed, false);
-            }
-          }
-        } catch (error) {
-          console.warn('Lecture CRM Drive ignorée.', error);
+async function refreshCrmClientDropdown(showToast = false) {
+  if (googleAccessToken) {
+    try {
+      const list = await driveFilesList({
+        spaces: 'appDataFolder',
+        q: `name='${CRM_DRIVE_SYNC_FILE_NAME}' and trashed=false`,
+        fields: 'files(id,name,modifiedTime)'
+      }, false);
+      const file = list?.result?.files?.[0];
+      if (file) {
+        const parsed = await fetchDriveJson(file.id);
+        const driveClients = Array.isArray(parsed?.clients) ? parsed.clients.map(client => ({ ...client, source: 'CRM Drive' })) : [];
+        const filteredDriveClients = filterDeletedCrmClients(driveClients);
+        crmDriveClientsCache = filteredDriveClients;
+        if (driveClients.length !== filteredDriveClients.length && parsed && typeof parsed === 'object') {
+          parsed.clients = filteredDriveClients;
+          await saveCrmDataToDrive(parsed, false);
         }
       }
-      renderCrmClientDropdown();
-      if (showToast) notify(`${getAllCrmClients().length} client(s) disponibles dans le CRM.`);
+    } catch (error) {
+      console.warn('Lecture CRM Drive ignorée.', error);
     }
+  }
+  renderCrmClientDropdown();
+  if (showToast) notify(`${getAllCrmClients().length} client(s) disponibles dans le CRM.`);
+}
 
-    function openCrmClientModalFromProject(projectId = selectedProjectId) {
-      const project = data.projects.find(item => item.id === projectId) || getProject();
-      openCrmClientModal(findCrmClientForProject(project) || project || {});
-    }
+function openCrmClientModalFromProject(projectId = selectedProjectId) {
+  const project = data.projects.find(item => item.id === projectId) || getProject();
+  openCrmClientModal(findCrmClientForProject(project) || project || {});
+}
 
-    function openCrmClientModal(client = {}) {
-      const normalized = normalizeCrmClient(client) || { id: '', name: '', clientNumber: '', email: '', address: '', vat: '', phone: '', contact: '', notes: '' };
-      openGenericModal(`
+function openCrmClientModal(client = {}) {
+  const normalized = normalizeCrmClient(client) || { id: '', name: '', clientNumber: '', email: '', address: '', vat: '', phone: '', contact: '', notes: '' };
+  openGenericModal(`
         <div class="modal-head">
           <div>
             <h2>${normalized.id || normalized.name ? 'Modifier client CRM' : 'Nouveau client CRM'}</h2>
@@ -525,329 +525,329 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           </div>
         </div>
       `);
+}
+
+async function deleteCrmClientFromModal() {
+  const originalKey = document.getElementById('crmFormOriginalKey')?.value || '';
+  const existingId = document.getElementById('crmFormId')?.value?.trim() || '';
+  const name = document.getElementById('crmFormName')?.value?.trim() || 'ce client';
+  const candidate = {
+    id: existingId,
+    name,
+    clientNumber: document.getElementById('crmFormClientNumber')?.value?.trim() || '',
+    email: normalizeClientEmail(document.getElementById('crmFormEmail')?.value || ''),
+    address: document.getElementById('crmFormAddress')?.value?.trim() || '',
+    vat: document.getElementById('crmFormVat')?.value?.trim() || '',
+    phone: document.getElementById('crmFormPhone')?.value?.trim() || '',
+    contact: document.getElementById('crmFormContact')?.value?.trim() || '',
+    notes: document.getElementById('crmFormNotes')?.value?.trim() || ''
+  };
+
+  if (!originalKey && !existingId && !name) {
+    notify('Ce client n’est pas encore enregistré dans le CRM.');
+    return;
+  }
+
+  const project = getProject();
+  const hasLinkedData = !!project && (
+    (project.linkedQuotes || []).length ||
+    (project.linkedInvoices || []).length ||
+    (project.linkedReminders || []).length ||
+    (project.costs || []).length ||
+    (project.documents || []).length ||
+    (project.tasks || []).length ||
+    (project.notes || []).length
+  );
+
+  const warning = hasLinkedData
+    ? `Supprimer le client CRM "${name}" ?\n\nSes données de suivi/documents liés restent conservés, mais le client disparaîtra de la liste CRM.`
+    : `Supprimer définitivement le client CRM "${name}" ?`;
+
+  if (!confirm(warning)) return;
+
+  const crmData = readFullCrmDataFromLocalStorage();
+  const clients = Array.isArray(crmData.clients) ? crmData.clients : [];
+  crmData.clients = filterDeletedCrmClients(clients).filter(client => {
+    const normalized = normalizeCrmClient(client) || client;
+    const keys = crmClientMatchKeys(normalized);
+    const candidateKeys = crmClientMatchKeys(candidate);
+    return !(
+      (existingId && String(client.id || '').trim() === existingId) ||
+      (originalKey && crmClientKey(normalized) === originalKey) ||
+      candidateKeys.some(key => keys.includes(key))
+    );
+  });
+
+  rememberDeletedCrmClient(candidate);
+  writeFullCrmDataToLocalStorage(crmData);
+  crmDriveClientsCache = filterDeletedCrmClients(crmDriveClientsCache);
+
+  if (project && (
+    (existingId && String(project.clientId || '').trim() === existingId) ||
+    (project.clientRef && originalKey === 'ref:' + normalizeLinkKey(project.clientRef)) ||
+    (project.clientName && originalKey === 'name:' + normalizeLinkKey(project.clientName))
+  )) {
+    addTimeline(project, 'Client supprimé du CRM officiel depuis Suivi client.');
+    saveLocalOnly();
+  }
+
+  await saveCrmDataToDrive(crmData, false);
+  closeGenericModal();
+  await refreshCrmClientDropdown(false);
+  selectedProjectId = '';
+  render();
+  notify(googleAccessToken ? 'Client CRM supprimé localement et sur Google Drive.' : 'Client CRM supprimé localement. La suppression sera conservée et appliquée à Drive à la prochaine connexion.');
+}
+
+async function submitCrmClientForm() {
+  const name = document.getElementById('crmFormName').value.trim();
+  if (!name) { notify('Le nom du client est obligatoire.'); return; }
+  const crmData = readFullCrmDataFromLocalStorage();
+  const originalKey = document.getElementById('crmFormOriginalKey').value;
+  const existingId = document.getElementById('crmFormId').value.trim();
+  const payload = {
+    id: existingId || uid('client'),
+    name,
+    clientNumber: document.getElementById('crmFormClientNumber').value.trim(),
+    email: normalizeClientEmail(document.getElementById('crmFormEmail').value),
+    address: document.getElementById('crmFormAddress').value.trim(),
+    vat: document.getElementById('crmFormVat').value.trim(),
+    phone: document.getElementById('crmFormPhone').value.trim(),
+    contact: document.getElementById('crmFormContact').value.trim(),
+    notes: document.getElementById('crmFormNotes').value.trim(),
+    favorite: false,
+    createdAt: existingId ? undefined : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  const clients = Array.isArray(crmData.clients) ? crmData.clients : [];
+  const index = clients.findIndex(client => {
+    const normalized = normalizeCrmClient(client) || client;
+    return (existingId && String(client.id || '').trim() === existingId) || crmClientKey(normalized) === originalKey;
+  });
+  if (index >= 0) {
+    clients[index] = { ...clients[index], ...payload, createdAt: clients[index].createdAt || payload.createdAt || new Date().toISOString() };
+  } else {
+    clients.push({ ...payload, createdAt: payload.createdAt || new Date().toISOString() });
+  }
+  crmData.clients = clients;
+  forgetDeletedCrmClient(payload);
+  writeFullCrmDataToLocalStorage(crmData);
+  crmDriveClientsCache = filterDeletedCrmClients(mergeCrmClientLists(crmDriveClientsCache, [payload]));
+  const project = getOrCreateProjectForCrmClient(payload);
+  if (project) {
+    selectedProjectId = project.id;
+    addTimeline(project, index >= 0 ? 'Identité CRM modifiée depuis Suivi client.' : 'Client CRM créé depuis Suivi client.');
+    saveLocalOnly();
+  }
+  await saveCrmDataToDrive(crmData, false);
+  closeGenericModal();
+  await refreshCrmClientDropdown(false);
+  render();
+  notify('Client CRM enregistré.');
+}
+
+async function autoLoadClientDocuments(showToast = false) {
+  const project = hydrateProjectWithCrm(getProject());
+  if (!project) return;
+  const hydrated = hydrateProjectWithCrm(project);
+  const localDocs = getLocalCrmDocumentsForProject(hydrated);
+  const driveDocs = await getDriveCrmDocumentsForProject(hydrated);
+  crmDocumentLinkCache = dedupeCrmDocs([...localDocs, ...driveDocs]);
+  if (crmDocumentLinkCache.length) {
+    for (const doc of crmDocumentLinkCache) await toggleCrmDocumentLink(doc.key, doc.ref, true);
+    if (showToast) notify('Documents client chargés / mis à jour.');
+  }
+}
+
+function getProject() {
+  return data.projects.find(project => project.id === selectedProjectId) || null;
+}
+
+function saveLocalOnly() {
+  const payload = JSON.stringify(data, null, 2);
+  localStorage.setItem(STORAGE_KEY, payload);
+  localStorage.setItem(STORAGE_KEY + '-last-save', new Date().toISOString());
+  return true;
+}
+
+async function saveData(showToast = true) {
+  const saveButton = document.getElementById('saveButton');
+  const previousLabel = saveButton ? saveButton.textContent : '';
+  try {
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = 'Sauvegarde…';
     }
 
-    async function deleteCrmClientFromModal() {
-      const originalKey = document.getElementById('crmFormOriginalKey')?.value || '';
-      const existingId = document.getElementById('crmFormId')?.value?.trim() || '';
-      const name = document.getElementById('crmFormName')?.value?.trim() || 'ce client';
-      const candidate = {
-        id: existingId,
-        name,
-        clientNumber: document.getElementById('crmFormClientNumber')?.value?.trim() || '',
-        email: normalizeClientEmail(document.getElementById('crmFormEmail')?.value || ''),
-        address: document.getElementById('crmFormAddress')?.value?.trim() || '',
-        vat: document.getElementById('crmFormVat')?.value?.trim() || '',
-        phone: document.getElementById('crmFormPhone')?.value?.trim() || '',
-        contact: document.getElementById('crmFormContact')?.value?.trim() || '',
-        notes: document.getElementById('crmFormNotes')?.value?.trim() || ''
-      };
+    const now = new Date().toISOString();
+    data.projects.forEach(project => project.updatedAt = now);
+    saveLocalOnly();
 
-      if (!originalKey && !existingId && !name) {
-        notify('Ce client n’est pas encore enregistré dans le CRM.');
-        return;
-      }
-
-      const project = getProject();
-      const hasLinkedData = !!project && (
-        (project.linkedQuotes || []).length ||
-        (project.linkedInvoices || []).length ||
-        (project.linkedReminders || []).length ||
-        (project.costs || []).length ||
-        (project.documents || []).length ||
-        (project.tasks || []).length ||
-        (project.notes || []).length
-      );
-
-      const warning = hasLinkedData
-        ? `Supprimer le client CRM "${name}" ?\n\nSes données de suivi/documents liés restent conservés, mais le client disparaîtra de la liste CRM.`
-        : `Supprimer définitivement le client CRM "${name}" ?`;
-
-      if (!confirm(warning)) return;
-
-      const crmData = readFullCrmDataFromLocalStorage();
-      const clients = Array.isArray(crmData.clients) ? crmData.clients : [];
-      crmData.clients = filterDeletedCrmClients(clients).filter(client => {
-        const normalized = normalizeCrmClient(client) || client;
-        const keys = crmClientMatchKeys(normalized);
-        const candidateKeys = crmClientMatchKeys(candidate);
-        return !(
-          (existingId && String(client.id || '').trim() === existingId) ||
-          (originalKey && crmClientKey(normalized) === originalKey) ||
-          candidateKeys.some(key => keys.includes(key))
-        );
-      });
-
-      rememberDeletedCrmClient(candidate);
-      writeFullCrmDataToLocalStorage(crmData);
-      crmDriveClientsCache = filterDeletedCrmClients(crmDriveClientsCache);
-
-      if (project && (
-        (existingId && String(project.clientId || '').trim() === existingId) ||
-        (project.clientRef && originalKey === 'ref:' + normalizeLinkKey(project.clientRef)) ||
-        (project.clientName && originalKey === 'name:' + normalizeLinkKey(project.clientName))
-      )) {
-        addTimeline(project, 'Client supprimé du CRM officiel depuis Suivi client.');
-        saveLocalOnly();
-      }
-
-      await saveCrmDataToDrive(crmData, false);
-      closeGenericModal();
-      await refreshCrmClientDropdown(false);
-      selectedProjectId = '';
-      render();
-      notify(googleAccessToken ? 'Client CRM supprimé localement et sur Google Drive.' : 'Client CRM supprimé localement. La suppression sera conservée et appliquée à Drive à la prochaine connexion.');
+    let driveOk = false;
+    if (googleAccessToken) {
+      driveOk = await saveSyncToDrive(false);
     }
 
-    async function submitCrmClientForm() {
-      const name = document.getElementById('crmFormName').value.trim();
-      if (!name) { notify('Le nom du client est obligatoire.'); return; }
-      const crmData = readFullCrmDataFromLocalStorage();
-      const originalKey = document.getElementById('crmFormOriginalKey').value;
-      const existingId = document.getElementById('crmFormId').value.trim();
-      const payload = {
-        id: existingId || uid('client'),
-        name,
-        clientNumber: document.getElementById('crmFormClientNumber').value.trim(),
-        email: normalizeClientEmail(document.getElementById('crmFormEmail').value),
-        address: document.getElementById('crmFormAddress').value.trim(),
-        vat: document.getElementById('crmFormVat').value.trim(),
-        phone: document.getElementById('crmFormPhone').value.trim(),
-        contact: document.getElementById('crmFormContact').value.trim(),
-        notes: document.getElementById('crmFormNotes').value.trim(),
-        favorite: false,
-        createdAt: existingId ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      const clients = Array.isArray(crmData.clients) ? crmData.clients : [];
-      const index = clients.findIndex(client => {
-        const normalized = normalizeCrmClient(client) || client;
-        return (existingId && String(client.id || '').trim() === existingId) || crmClientKey(normalized) === originalKey;
-      });
-      if (index >= 0) {
-        clients[index] = { ...clients[index], ...payload, createdAt: clients[index].createdAt || payload.createdAt || new Date().toISOString() };
-      } else {
-        clients.push({ ...payload, createdAt: payload.createdAt || new Date().toISOString() });
-      }
-      crmData.clients = clients;
-      forgetDeletedCrmClient(payload);
-      writeFullCrmDataToLocalStorage(crmData);
-      crmDriveClientsCache = filterDeletedCrmClients(mergeCrmClientLists(crmDriveClientsCache, [payload]));
-      const project = getOrCreateProjectForCrmClient(payload);
-      if (project) {
-        selectedProjectId = project.id;
-        addTimeline(project, index >= 0 ? 'Identité CRM modifiée depuis Suivi client.' : 'Client CRM créé depuis Suivi client.');
-        saveLocalOnly();
-      }
-      await saveCrmDataToDrive(crmData, false);
-      closeGenericModal();
-      await refreshCrmClientDropdown(false);
-      render();
-      notify('Client CRM enregistré.');
+    if (showToast) {
+      notify(driveOk
+        ? 'Suivi client sauvegardé localement et sur Google Drive.'
+        : 'Suivi client sauvegardé localement.' + (googleAccessToken ? ' Google Drive non disponible pour le moment.' : ''));
     }
 
-    async function autoLoadClientDocuments(showToast = false) {
-      const project = hydrateProjectWithCrm(getProject());
-      if (!project) return;
-      const hydrated = hydrateProjectWithCrm(project);
-      const localDocs = getLocalCrmDocumentsForProject(hydrated);
-      const driveDocs = await getDriveCrmDocumentsForProject(hydrated);
-      crmDocumentLinkCache = dedupeCrmDocs([...localDocs, ...driveDocs]);
-      if (crmDocumentLinkCache.length) {
-        for (const doc of crmDocumentLinkCache) await toggleCrmDocumentLink(doc.key, doc.ref, true);
-        if (showToast) notify('Documents client chargés / mis à jour.');
-      }
+    render();
+    return true;
+  } catch (error) {
+    console.error('Sauvegarde suivi client impossible', error);
+    if (showToast) notify('Erreur : la sauvegarde du suivi client n’a pas pu être effectuée.');
+    return false;
+  } finally {
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = previousLabel || 'Sauvegarder';
     }
+  }
+}
 
-    function getProject() {
-      return data.projects.find(project => project.id === selectedProjectId) || null;
-    }
+function addTimeline(project, text) {
+  project.timeline.unshift({
+    id: uid('evt'),
+    date: new Date().toISOString(),
+    text
+  });
+  project.timeline = project.timeline.slice(0, 80);
+}
 
-    function saveLocalOnly() {
-      const payload = JSON.stringify(data, null, 2);
-      localStorage.setItem(STORAGE_KEY, payload);
-      localStorage.setItem(STORAGE_KEY + '-last-save', new Date().toISOString());
-      return true;
-    }
+function projectMoneyValue(item) {
+  // Montant affiché dans les tableaux : total client HTVA (main d’œuvre/prestation + fournitures).
+  return Number(item?.clientHtva ?? item?.totalClientHtva ?? item?.amount ?? item?.htva ?? 0) || 0;
+}
 
-    async function saveData(showToast = true) {
-      const saveButton = document.getElementById('saveButton');
-      const previousLabel = saveButton ? saveButton.textContent : '';
-      try {
-        if (saveButton) {
-          saveButton.disabled = true;
-          saveButton.textContent = 'Sauvegarde…';
-        }
+function projectWorkValue(item) {
+  // Partie prestation/main d’œuvre : c’est la marge brute avant coûts manuels éventuels.
+  return Number(item?.workHtva ?? item?.htva ?? item?.amount ?? 0) || 0;
+}
 
-        const now = new Date().toISOString();
-        data.projects.forEach(project => project.updatedAt = now);
-        saveLocalOnly();
+function projectSupplyValue(item) {
+  // Coût réel des fournitures : priorité au prix de revient, fallback ancien = prix facturé des fournitures.
+  return Number(item?.suppliesCost ?? item?.suppliesCostHtva ?? item?.costHtva ?? item?.suppliesHtva ?? 0) || 0;
+}
 
-        let driveOk = false;
-        if (googleAccessToken) {
-          driveOk = await saveSyncToDrive(false);
-        }
+function projectSupplySaleValue(item) {
+  // Montant facturé au client pour les fournitures.
+  return Number(item?.suppliesSaleHtva ?? item?.suppliesHtva ?? 0) || 0;
+}
 
-        if (showToast) {
-          notify(driveOk
-            ? 'Suivi client sauvegardé localement et sur Google Drive.'
-            : 'Suivi client sauvegardé localement.' + (googleAccessToken ? ' Google Drive non disponible pour le moment.' : ''));
-        }
+function projectTotals(project) {
+  // Suivi client : les devis ne pilotent plus le calcul.
+  // CA facturé = factures complètes HTVA (prestations + fournitures facturées).
+  const invoices = sum((project.linkedInvoices || []).map(projectMoneyValue));
 
-        render();
-        return true;
-      } catch (error) {
-        console.error('Sauvegarde suivi client impossible', error);
-        if (showToast) notify('Erreur : la sauvegarde du suivi client n’a pas pu être effectuée.');
-        return false;
-      } finally {
-        if (saveButton) {
-          saveButton.disabled = false;
-          saveButton.textContent = previousLabel || 'Sauvegarder';
-        }
-      }
-    }
+  // Coûts = prix de revient réel des fournitures + coûts manuels éventuels.
+  const manualCosts = sum((project.costs || []).map(projectMoneyValue));
+  const invoiceSupplyCosts = sum((project.linkedInvoices || []).map(projectSupplyValue));
+  const costs = manualCosts + invoiceSupplyCosts;
 
-    function addTimeline(project, text) {
-      project.timeline.unshift({
-        id: uid('evt'),
-        date: new Date().toISOString(),
-        text
-      });
-      project.timeline = project.timeline.slice(0, 80);
-    }
+  // Marge réelle = CA facturé - prix de revient - coûts manuels.
+  // Si aucun prix de revient n'est saisi, l'ancien comportement est conservé (coût = prix facturé des fournitures).
+  const invoiceWorkTotal = sum((project.linkedInvoices || []).map(projectWorkValue));
+  const invoiceSupplySales = sum((project.linkedInvoices || []).map(projectSupplySaleValue));
+  const margin = invoices - costs;
+  const marginRate = invoices > 0 ? (margin / invoices) * 100 : 0;
 
-    function projectMoneyValue(item) {
-      // Montant affiché dans les tableaux : total client HTVA (main d’œuvre/prestation + fournitures).
-      return Number(item?.clientHtva ?? item?.totalClientHtva ?? item?.amount ?? item?.htva ?? 0) || 0;
-    }
+  return {
+    invoices,
+    costs,
+    margin,
+    marginRate,
+    invoiceWorkTotal,
+    invoiceSupplySales,
+    manualCosts,
+    invoiceSupplyCosts,
+    quoteAmount: 0,
+    estimatedMargin: margin,
+    remaining: 0
+  };
+}
 
-    function projectWorkValue(item) {
-      // Partie prestation/main d’œuvre : c’est la marge brute avant coûts manuels éventuels.
-      return Number(item?.workHtva ?? item?.htva ?? item?.amount ?? 0) || 0;
-    }
+function sum(values) {
+  return values.reduce((total, value) => total + (Number(value) || 0), 0);
+}
 
-    function projectSupplyValue(item) {
-      // Coût réel des fournitures : priorité au prix de revient, fallback ancien = prix facturé des fournitures.
-      return Number(item?.suppliesCost ?? item?.suppliesCostHtva ?? item?.costHtva ?? item?.suppliesHtva ?? 0) || 0;
-    }
+function render() {
+  renderMetrics();
+  renderCrmClientDropdown();
+  renderProjectList();
+  renderMain();
+}
 
-    function projectSupplySaleValue(item) {
-      // Montant facturé au client pour les fournitures.
-      return Number(item?.suppliesSaleHtva ?? item?.suppliesHtva ?? 0) || 0;
-    }
+function renderMetrics() {
+  const totals = data.projects.reduce((acc, project) => {
+    const t = projectTotals(project);
+    acc.invoices += t.invoices;
+    acc.costs += t.costs;
+    acc.margin += t.margin;
+    acc.docs += project.documents.length;
+    acc.active += project.status === 'active' ? 1 : 0;
+    return acc;
+  }, { invoices: 0, costs: 0, margin: 0, docs: 0, active: 0 });
 
-    function projectTotals(project) {
-      // Suivi client : les devis ne pilotent plus le calcul.
-      // CA facturé = factures complètes HTVA (prestations + fournitures facturées).
-      const invoices = sum((project.linkedInvoices || []).map(projectMoneyValue));
+  const margin = totals.margin;
+  const rate = totals.invoices > 0 ? (margin / totals.invoices) * 100 : 0;
 
-      // Coûts = prix de revient réel des fournitures + coûts manuels éventuels.
-      const manualCosts = sum((project.costs || []).map(projectMoneyValue));
-      const invoiceSupplyCosts = sum((project.linkedInvoices || []).map(projectSupplyValue));
-      const costs = manualCosts + invoiceSupplyCosts;
+  document.getElementById('metricProjects').textContent = getAllCrmClients().length;
+  document.getElementById('metricProjectsSub').textContent = 'base officielle';
+  document.getElementById('metricInvoices').textContent = formatMoney(totals.invoices);
+  document.getElementById('metricCosts').textContent = formatMoney(totals.costs);
+  document.getElementById('metricMargin').textContent = formatMoney(margin);
+  document.getElementById('metricMargin').className = 'metric-value ' + (margin >= 0 ? 'margin-positive' : 'margin-negative');
+  document.getElementById('metricMarginRate').textContent = rate.toFixed(1).replace('.', ',') + '%';
+  document.getElementById('metricDocs').textContent = totals.docs;
+}
 
-      // Marge réelle = CA facturé - prix de revient - coûts manuels.
-      // Si aucun prix de revient n'est saisi, l'ancien comportement est conservé (coût = prix facturé des fournitures).
-      const invoiceWorkTotal = sum((project.linkedInvoices || []).map(projectWorkValue));
-      const invoiceSupplySales = sum((project.linkedInvoices || []).map(projectSupplySaleValue));
-      const margin = invoices - costs;
-      const marginRate = invoices > 0 ? (margin / invoices) * 100 : 0;
+function getFilteredProjects() {
+  const search = document.getElementById('searchInput')?.value?.trim().toLowerCase() || '';
+  const status = document.getElementById('statusFilter')?.value || '';
 
-      return {
-        invoices,
-        costs,
-        margin,
-        marginRate,
-        invoiceWorkTotal,
-        invoiceSupplySales,
-        manualCosts,
-        invoiceSupplyCosts,
-        quoteAmount: 0,
-        estimatedMargin: margin,
-        remaining: 0
-      };
-    }
+  return data.projects.filter(project => {
+    const haystack = [
+      project.title,
+      project.clientName,
+      project.clientRef,
+      project.address,
+      project.description
+    ].join(' ').toLowerCase();
 
-    function sum(values) {
-      return values.reduce((total, value) => total + (Number(value) || 0), 0);
-    }
+    return (!search || haystack.includes(search)) && (!status || project.status === status);
+  }).sort((a, b) => {
+    if (a.status === 'active' && b.status !== 'active') return -1;
+    if (b.status === 'active' && a.status !== 'active') return 1;
+    return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+  });
+}
 
-    function render() {
-      renderMetrics();
-      renderCrmClientDropdown();
-      renderProjectList();
-      renderMain();
-    }
+function renderProjectList() {
+  const list = document.getElementById('projectList');
+  if (list) list.innerHTML = '';
+}
 
-    function renderMetrics() {
-      const totals = data.projects.reduce((acc, project) => {
-        const t = projectTotals(project);
-        acc.invoices += t.invoices;
-        acc.costs += t.costs;
-        acc.margin += t.margin;
-        acc.docs += project.documents.length;
-        acc.active += project.status === 'active' ? 1 : 0;
-        return acc;
-      }, { invoices: 0, costs: 0, margin: 0, docs: 0, active: 0 });
+function selectProject(id) {
+  selectedProjectId = id;
+  activeTab = 'summary';
+  render();
+}
 
-      const margin = totals.margin;
-      const rate = totals.invoices > 0 ? (margin / totals.invoices) * 100 : 0;
+function renderMain() {
+  const container = document.getElementById('mainContent');
+  const project = hydrateProjectWithCrm(getProject());
 
-      document.getElementById('metricProjects').textContent = getAllCrmClients().length;
-      document.getElementById('metricProjectsSub').textContent = 'base officielle';
-      document.getElementById('metricInvoices').textContent = formatMoney(totals.invoices);
-      document.getElementById('metricCosts').textContent = formatMoney(totals.costs);
-      document.getElementById('metricMargin').textContent = formatMoney(margin);
-      document.getElementById('metricMargin').className = 'metric-value ' + (margin >= 0 ? 'margin-positive' : 'margin-negative');
-      document.getElementById('metricMarginRate').textContent = rate.toFixed(1).replace('.', ',') + '%';
-      document.getElementById('metricDocs').textContent = totals.docs;
-    }
+  if (!project) {
+    container.innerHTML = '';
+    return;
+  }
 
-    function getFilteredProjects() {
-      const search = document.getElementById('searchInput')?.value?.trim().toLowerCase() || '';
-      const status = document.getElementById('statusFilter')?.value || '';
+  const t = projectTotals(project);
 
-      return data.projects.filter(project => {
-        const haystack = [
-          project.title,
-          project.clientName,
-          project.clientRef,
-          project.address,
-          project.description
-        ].join(' ').toLowerCase();
-
-        return (!search || haystack.includes(search)) && (!status || project.status === status);
-      }).sort((a, b) => {
-        if (a.status === 'active' && b.status !== 'active') return -1;
-        if (b.status === 'active' && a.status !== 'active') return 1;
-        return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
-      });
-    }
-
-    function renderProjectList() {
-      const list = document.getElementById('projectList');
-      if (list) list.innerHTML = '';
-    }
-
-    function selectProject(id) {
-      selectedProjectId = id;
-      activeTab = 'summary';
-      render();
-    }
-
-    function renderMain() {
-      const container = document.getElementById('mainContent');
-      const project = hydrateProjectWithCrm(getProject());
-
-      if (!project) {
-        container.innerHTML = '';
-        return;
-      }
-
-      const t = projectTotals(project);
-
-      container.innerHTML = `
+  container.innerHTML = `
         <div class="hero">
           <div class="hero-top">
             <div>
@@ -885,19 +885,19 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           ${renderTabPages(project)}
         </div>
       `;
-    }
+}
 
-    function tabButton(key, label) {
-      return `<button class="tab ${activeTab === key ? 'active' : ''}" onclick="setTab('${key}')">${label}</button>`;
-    }
+function tabButton(key, label) {
+  return `<button class="tab ${activeTab === key ? 'active' : ''}" onclick="setTab('${key}')">${label}</button>`;
+}
 
-    function setTab(tab) {
-      activeTab = tab;
-      renderMain();
-    }
+function setTab(tab) {
+  activeTab = tab;
+  renderMain();
+}
 
-    function renderTabPages(project) {
-      return `
+function renderTabPages(project) {
+  return `
         <section class="tab-page ${activeTab === 'summary' ? 'active' : ''}">
           ${renderSummaryTab(project)}
         </section>
@@ -920,12 +920,12 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           ${renderHistoryTab(project)}
         </section>
       `;
-    }
+}
 
-    function renderSummaryTab(project) {
-      const t = projectTotals(project);
+function renderSummaryTab(project) {
+  const t = projectTotals(project);
 
-      return `
+  return `
         <div class="grid-2">
           <div class="form-card">
             <div class="section-head">
@@ -975,10 +975,10 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           </div>
         </div>
       `;
-    }
+}
 
-    function renderQuotesTab(project) {
-      return `
+function renderQuotesTab(project) {
+  return `
         <div class="form-card">
           <div class="section-head">
             <h3 class="section-title">Devis liés</h3>
@@ -989,10 +989,10 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           ${renderMoneyTable(project.linkedQuotes || [], 'quote')}
         </div>
       `;
-    }
+}
 
-    function renderFinanceTab(project) {
-      return `
+function renderFinanceTab(project) {
+  return `
         <div class="form-card">
           <div class="section-head">
             <h3 class="section-title">Factures liées</h3>
@@ -1021,24 +1021,24 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           ${renderMoneyTable(project.costs, 'cost')}
         </div>
       `;
-    }
+}
 
-    function moneyTypeToDocKey(type) {
-      return type === 'invoice' ? 'invoice' : type === 'reminder' ? 'reminder' : type === 'quote' ? 'quote' : '';
-    }
+function moneyTypeToDocKey(type) {
+  return type === 'invoice' ? 'invoice' : type === 'reminder' ? 'reminder' : type === 'quote' ? 'quote' : '';
+}
 
-    function moneyTypeLabel(type) {
-      return type === 'invoice' ? 'Facture' : type === 'reminder' ? 'Rappel' : type === 'quote' ? 'Devis' : 'Ligne';
-    }
+function moneyTypeLabel(type) {
+  return type === 'invoice' ? 'Facture' : type === 'reminder' ? 'Rappel' : type === 'quote' ? 'Devis' : 'Ligne';
+}
 
-    function renderMoneyTable(items, type) {
-      if (!items.length) {
-        return '<div class="hint">Aucune ligne ajoutée.</div>';
-      }
+function renderMoneyTable(items, type) {
+  if (!items.length) {
+    return '<div class="hint">Aucune ligne ajoutée.</div>';
+  }
 
-      const isCrmDoc = ['quote', 'invoice', 'reminder'].includes(type);
+  const isCrmDoc = ['quote', 'invoice', 'reminder'].includes(type);
 
-      return `
+  return `
         <div class="table-wrap">
           <table>
             <thead>
@@ -1070,7 +1070,7 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
                           </div>
                         </details>
                       ` : ''}
-                      <button class="small danger" onclick="${isCrmDoc ? `deleteCrmLinkedDocument('${type}', '${escapeAttr(item.id)}')` : `deleteMoneyItem('${type}', '${escapeAttr(item.id)}')`}">Supprimer</button>
+                      <button class="small doc-delete-btn" title="Supprimer" aria-label="Supprimer" onclick="${isCrmDoc ? `deleteCrmLinkedDocument('${type}', '${escapeAttr(item.id)}')` : `deleteMoneyItem('${type}', '${escapeAttr(item.id)}')`}">×</button>
                     </div>
                   </td>
                 </tr>
@@ -1079,47 +1079,47 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           </table>
         </div>
       `;
-    }
+}
 
-    function getLinkedDocumentItem(type, itemId) {
-      const project = getProject();
-      if (!project) return null;
-      const listName = type === 'quote' ? 'linkedQuotes' : type === 'invoice' ? 'linkedInvoices' : type === 'reminder' ? 'linkedReminders' : '';
-      const list = listName ? (project[listName] || []) : [];
-      return list.find(item => String(item.id || '') === String(itemId) || String(item.documentUid || '') === String(itemId) || String(item.ref || '') === String(itemId)) || null;
-    }
+function getLinkedDocumentItem(type, itemId) {
+  const project = getProject();
+  if (!project) return null;
+  const listName = type === 'quote' ? 'linkedQuotes' : type === 'invoice' ? 'linkedInvoices' : type === 'reminder' ? 'linkedReminders' : '';
+  const list = listName ? (project[listName] || []) : [];
+  return list.find(item => String(item.id || '') === String(itemId) || String(item.documentUid || '') === String(itemId) || String(item.ref || '') === String(itemId)) || null;
+}
 
-    function buildSingleDocumentPayloadFromCurrentData(docKey) {
-      const devisData = loadDevisFactureData();
-      const doc = devisData?.[docKey];
-      if (!doc || !doc.documentNumber) return null;
-      const payload = { ...devisData };
-      payload[docKey] = doc;
-      return payload;
-    }
+function buildSingleDocumentPayloadFromCurrentData(docKey) {
+  const devisData = loadDevisFactureData();
+  const doc = devisData?.[docKey];
+  if (!doc || !doc.documentNumber) return null;
+  const payload = { ...devisData };
+  payload[docKey] = doc;
+  return payload;
+}
 
-    async function getLinkedDocumentSourcePayload(type, item) {
-      const docKey = moneyTypeToDocKey(type);
-      if (!docKey || !item) return null;
-      if (item.fileId && googleAccessToken) {
-        const parsed = await fetchDriveJson(item.fileId);
-        if (parsed?.[docKey]) return parsed;
-      }
-      const localData = loadDevisFactureData();
-      if (localData?.[docKey] && String(localData[docKey].documentNumber || '') === String(item.ref || '')) return localData;
-      return null;
-    }
+async function getLinkedDocumentSourcePayload(type, item) {
+  const docKey = moneyTypeToDocKey(type);
+  if (!docKey || !item) return null;
+  if (item.fileId && googleAccessToken) {
+    const parsed = await fetchDriveJson(item.fileId);
+    if (parsed?.[docKey]) return parsed;
+  }
+  const localData = loadDevisFactureData();
+  if (localData?.[docKey] && String(localData[docKey].documentNumber || '') === String(item.ref || '')) return localData;
+  return null;
+}
 
-    async function previewCrmLinkedDocument(type, itemId) {
-      const item = getLinkedDocumentItem(type, itemId);
-      if (!item) return notify('Document introuvable dans la fiche client.');
-      const payload = await getLinkedDocumentSourcePayload(type, item);
-      const docKey = moneyTypeToDocKey(type);
-      const doc = payload?.[docKey] || {};
-      const totals = documentTotals(doc);
-      const lines = Array.isArray(doc.lines) ? doc.lines : [];
-      const supplies = doc.suppliesEnabled && Array.isArray(doc.suppliesLines) ? doc.suppliesLines : [];
-      openGenericModal(`
+async function previewCrmLinkedDocument(type, itemId) {
+  const item = getLinkedDocumentItem(type, itemId);
+  if (!item) return notify('Document introuvable dans la fiche client.');
+  const payload = await getLinkedDocumentSourcePayload(type, item);
+  const docKey = moneyTypeToDocKey(type);
+  const doc = payload?.[docKey] || {};
+  const totals = documentTotals(doc);
+  const lines = Array.isArray(doc.lines) ? doc.lines : [];
+  const supplies = doc.suppliesEnabled && Array.isArray(doc.suppliesLines) ? doc.suppliesLines : [];
+  openGenericModal(`
         <div class="modal-head">
           <div>
             <h2>${escapeHtml(moneyTypeLabel(type))} ${escapeHtml(item.ref || doc.documentNumber || '')}</h2>
@@ -1148,468 +1148,468 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           </details>
         </div>
       `);
+}
+
+
+/* ==========================================================
+   EXPORT PDF METIER - Devis / Facture / Rappel
+   Génère un vrai document A4 avec le rendu comptable Bast Aménagement,
+   sans capturer l'écran de l'application.
+   ========================================================== */
+
+function loadExternalScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    if ([...document.scripts].some(script => script.src === src)) return resolve();
+    const script = document.createElement('script');
+    script.src = src;
+    script.crossOrigin = 'anonymous';
+    script.referrerPolicy = 'no-referrer';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Chargement impossible : ' + src));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureDocumentPdfLibraries() {
+  if (!window.jspdf?.jsPDF) {
+    await loadExternalScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  }
+  if (!window.jspdf?.jsPDF?.API?.autoTable) {
+    await loadExternalScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+  }
+  return window.jspdf?.jsPDF;
+}
+
+function pdfClean(value, fallback = '') {
+  const text = String(value ?? fallback ?? '').replace(/\r/g, '').trim();
+  return text || fallback || '';
+}
+
+function pdfNumber(value) {
+  const number = Number(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(number) ? number : 0;
+}
+
+function pdfMoney(value) {
+  return new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(pdfNumber(value)) + ' €';
+}
+
+function pdfPlainNumber(value) {
+  return new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(pdfNumber(value));
+}
+
+function pdfRate(value) {
+  const raw = value ?? 21;
+  const n = pdfNumber(raw);
+  return (n || 0).toString().replace('.', ',') + '%';
+}
+
+function pdfDocTitle(type) {
+  if (type === 'invoice') return 'FACTURE';
+  if (type === 'reminder') return 'RAPPEL';
+  return 'DEVIS';
+}
+
+function pdfDocPrefix(type) {
+  if (type === 'invoice') return 'facture';
+  if (type === 'reminder') return 'rappel';
+  return 'devis';
+}
+
+function getPdfCompany(payload = {}) {
+  const company = payload.company || payload.settings?.company || {};
+  return {
+    name: pdfClean(company.name, 'Bast Aménagement'),
+    address1: pdfClean(company.address1 || company.address || 'Rue du Culot 4'),
+    address2: pdfClean(company.address2 || company.zipCity || '6831 Noirefontaine'),
+    phone: pdfClean(company.phone || company.tel || '+32 478 79 89 76'),
+    email: pdfClean(company.email || 'bast-amenagement@outlook.com'),
+    website: pdfClean(company.website || company.site || 'www.bast-amenagement.com'),
+    vat: pdfClean(company.vat || company.tva || 'BE0799404912'),
+    bank: pdfClean(company.bank || company.iban || 'BE55 0019 4766 7444'),
+    logo: company.logo || company.logoDataUrl || company.logoUrl || ''
+  };
+}
+
+function getPdfDocumentFromPayload(payload, type, item) {
+  const key = moneyTypeToDocKey(type);
+  return payload?.[key] || item?.rawDocument || {};
+}
+
+function getPdfClient(doc = {}, item = {}, project = {}) {
+  return {
+    name: pdfClean(doc.clientName || item.clientName || project.clientName || project.title, 'Client'),
+    address: pdfClean(doc.clientAddress || doc.address || item.address || project.address, ''),
+    number: pdfClean(doc.clientNumber || doc.clientRef || item.clientRef || project.clientRef, ''),
+    vat: pdfClean(doc.clientVat || doc.vat || item.clientVat || project.clientVat, 'NA'),
+    email: pdfClean(doc.clientEmail || doc.email || item.clientEmail || project.clientEmail || project.email, ''),
+    phone: pdfClean(doc.clientPhone || doc.phone || item.phone || project.phone, ''),
+    site: pdfClean(doc.siteName || doc.siteAddress || item.siteName || '', '')
+  };
+}
+
+function pdfLineQty(line) {
+  return line.qty ?? line.quantity ?? line.qte ?? line.amountQty ?? 0;
+}
+
+function pdfLineUnit(line) {
+  return pdfClean(line.unit || line.unity || line.unitLabel || line.u || 'p');
+}
+
+function pdfLineUnitPrice(line) {
+  return line.unitPrice ?? line.price ?? line.pu ?? line.salePrice ?? 0;
+}
+
+function pdfLineDiscount(line) {
+  return line.discount ?? line.remise ?? line.discountPercent ?? 0;
+}
+
+function pdfLineVat(line) {
+  return line.vatRate ?? line.tva ?? line.vat ?? line.taxRate ?? 21;
+}
+
+function pdfLineTotal(line) {
+  const existing = line.htva ?? line.totalHtva ?? line.totalHTVA ?? line.total ?? line.amount;
+  if (existing !== undefined && existing !== null && existing !== '') return pdfNumber(existing);
+  if (typeof moneyLineHtva === 'function') return pdfNumber(moneyLineHtva(line));
+  const qty = pdfNumber(pdfLineQty(line));
+  const unit = pdfNumber(pdfLineUnitPrice(line));
+  const discount = pdfNumber(pdfLineDiscount(line));
+  return qty * unit * Math.max(0, 1 - discount / 100);
+}
+
+function pdfSupplyCost(line) {
+  return line.costHtva ?? line.cost ?? line.purchasePrice ?? line.revient ?? pdfLineTotal(line);
+}
+
+function getPdfPaymentCommunication(doc = {}, type = 'invoice') {
+  return pdfClean(doc.communication || doc.paymentCommunication || doc.structuredCommunication || doc.structuredCom || '');
+}
+
+function addPdfWrappedText(pdf, text, x, y, maxWidth, options = {}) {
+  const size = options.size || 9;
+  pdf.setFontSize(size);
+  pdf.setFont('helvetica', options.bold ? 'bold' : 'normal');
+  const lines = pdf.splitTextToSize(pdfClean(text), maxWidth);
+  pdf.text(lines, x, y);
+  return y + (lines.length * (options.lineHeight || size * 0.42 + 2));
+}
+
+function addPdfPageNumber(pdf) {
+  const count = pdf.internal.getNumberOfPages();
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(110, 110, 110);
+  for (let i = 1; i <= count; i++) {
+    pdf.setPage(i);
+    pdf.text('Page ' + i + ' / ' + count, 105, 287, { align: 'center' });
+  }
+  pdf.setTextColor(0, 0, 0);
+}
+
+async function addPdfLogo(pdf, company, x, y, size) {
+  try {
+    if (company.logo && /^data:image\//.test(company.logo)) {
+      pdf.addImage(company.logo, undefined, x, y, size, size, undefined, 'FAST');
+      return;
     }
+  } catch (error) {
+    console.warn('Logo PDF ignoré.', error);
+  }
+  pdf.setDrawColor(210, 215, 222);
+  pdf.circle(x + size / 2, y + size / 2, size / 2, 'S');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.text('BAST', x + size / 2, y + size / 2 - 1, { align: 'center' });
+  pdf.setFontSize(6);
+  pdf.text('AMENAGEMENT', x + size / 2, y + size / 2 + 5, { align: 'center' });
+}
 
+async function buildCommercialDocumentPdf(type, item, payload) {
+  const jsPDF = await ensureDocumentPdfLibraries();
+  if (!jsPDF) throw new Error('Librairie PDF indisponible.');
 
-    /* ==========================================================
-       EXPORT PDF METIER - Devis / Facture / Rappel
-       Génère un vrai document A4 avec le rendu comptable Bast Aménagement,
-       sans capturer l'écran de l'application.
-       ========================================================== */
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+  const doc = getPdfDocumentFromPayload(payload, type, item);
+  const project = hydrateProjectWithCrm(getProject()) || {};
+  const company = getPdfCompany(payload);
+  const client = getPdfClient(doc, item, project);
+  const totals = documentTotals(doc);
+  const lines = Array.isArray(doc.lines) ? doc.lines : [];
+  const suppliesEnabled = doc.suppliesEnabled !== false;
+  const supplies = suppliesEnabled && Array.isArray(doc.suppliesLines) ? doc.suppliesLines : [];
+  const number = pdfClean(doc.documentNumber || item.ref || 'document');
+  const date = pdfClean(doc.date || item.date || todayISO());
+  const dueDate = pdfClean(doc.dueDate || doc.due || doc.paymentDueDate || '');
 
-    function loadExternalScriptOnce(src) {
-      return new Promise((resolve, reject) => {
-        if ([...document.scripts].some(script => script.src === src)) return resolve();
-        const script = document.createElement('script');
-        script.src = src;
-        script.crossOrigin = 'anonymous';
-        script.referrerPolicy = 'no-referrer';
-        script.onload = resolve;
-        script.onerror = () => reject(new Error('Chargement impossible : ' + src));
-        document.head.appendChild(script);
-      });
-    }
+  const margin = 10;
+  let y = 14;
 
-    async function ensureDocumentPdfLibraries() {
-      if (!window.jspdf?.jsPDF) {
-        await loadExternalScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-      }
-      if (!window.jspdf?.jsPDF?.API?.autoTable) {
-        await loadExternalScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
-      }
-      return window.jspdf?.jsPDF;
-    }
+  // En-tête proche du modèle facture envoyé.
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(27);
+  pdf.setTextColor(20, 31, 46);
+  pdf.text(pdfDocTitle(type), 112, 13);
 
-    function pdfClean(value, fallback = '') {
-      const text = String(value ?? fallback ?? '').replace(/\r/g, '').trim();
-      return text || fallback || '';
-    }
+  pdf.setFontSize(13);
+  pdf.text(company.name, margin, 30);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(9.5);
+  let companyY = 38;
+  [company.address1, company.address2, 'Tél. ' + company.phone, company.email, company.website, 'TVA ' + company.vat].filter(Boolean).forEach(line => {
+    pdf.text(line, margin, companyY);
+    companyY += 6;
+  });
+  await addPdfLogo(pdf, company, 72, 42, 24);
 
-    function pdfNumber(value) {
-      const number = Number(String(value ?? '').replace(',', '.'));
-      return Number.isFinite(number) ? number : 0;
-    }
+  pdf.setDrawColor(220, 224, 230);
+  pdf.rect(108, 22, 96, 46);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(8.5);
+  pdf.text('CLIENT', 111, 29);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8.7);
+  let cy = 36;
+  [client.name, client.address, client.site, client.email ? 'E-mail : ' + client.email : '', client.phone ? 'Tel : ' + client.phone : ''].filter(Boolean).forEach(block => {
+    const parts = pdf.splitTextToSize(block, 88);
+    pdf.text(parts, 111, cy);
+    cy += Math.max(5, parts.length * 4.2);
+  });
 
-    function pdfMoney(value) {
-      return new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(pdfNumber(value)) + ' €';
-    }
+  const metaHead = type === 'invoice' || type === 'reminder'
+    ? [['N° DOCUMENT', "DATE\nD’ÉCHÉANCE", 'VOTRE N° DE CLIENT', 'VOTRE N° TVA', 'DATE']]
+    : [['N° DOCUMENT', 'DATE', 'VOTRE N° DE CLIENT', 'VOTRE N° TVA', 'VALIDITÉ']];
+  const metaBody = type === 'invoice' || type === 'reminder'
+    ? [[number, dueDate || '—', client.number || '—', client.vat || 'NA', date]]
+    : [[number, date, client.number || '—', client.vat || 'NA', doc.validUntil || doc.validity || '—']];
+  pdf.autoTable({
+    startY: 78,
+    margin: { left: margin, right: margin },
+    head: metaHead,
+    body: metaBody,
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 8.2, cellPadding: 3, lineColor: [204, 209, 216], lineWidth: 0.35, textColor: [26, 34, 48] },
+    headStyles: { fillColor: [255, 255, 255], textColor: [45, 49, 58], fontStyle: 'bold' },
+    bodyStyles: { fillColor: [255, 255, 255] }
+  });
 
-    function pdfPlainNumber(value) {
-      return new Intl.NumberFormat('fr-BE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(pdfNumber(value));
-    }
+  y = pdf.lastAutoTable.finalY + 5;
+  const columns = [
+    { header: 'DESCRIPTION', dataKey: 'description' },
+    { header: 'QUANTITÉ', dataKey: 'qty' },
+    { header: 'UNITÉ', dataKey: 'unit' },
+    { header: 'PR. UNIT.', dataKey: 'unitPrice' },
+    { header: 'REMISE', dataKey: 'discount' },
+    { header: 'TOTAL', dataKey: 'total' },
+    { header: 'TVA', dataKey: 'vat' }
+  ];
+  const body = lines.map(line => ({
+    description: pdfClean(line.description || line.label || ''),
+    qty: pdfPlainNumber(pdfLineQty(line)),
+    unit: pdfLineUnit(line),
+    unitPrice: pdfPlainNumber(pdfLineUnitPrice(line)),
+    discount: pdfPlainNumber(pdfLineDiscount(line)),
+    total: pdfMoney(pdfLineTotal(line)),
+    vat: pdfRate(pdfLineVat(line))
+  }));
 
-    function pdfRate(value) {
-      const raw = value ?? 21;
-      const n = pdfNumber(raw);
-      return (n || 0).toString().replace('.', ',') + '%';
-    }
+  if (body.length) {
+    pdf.autoTable({
+      startY: y,
+      margin: { left: margin, right: margin },
+      columns,
+      body,
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8.2, cellPadding: 3, lineColor: [204, 209, 216], lineWidth: 0.35, valign: 'middle', textColor: [20, 31, 46] },
+      headStyles: { fillColor: [255, 255, 255], textColor: [45, 49, 58], fontStyle: 'bold' },
+      columnStyles: { description: { cellWidth: 52 }, qty: { halign: 'right', cellWidth: 25 }, unit: { cellWidth: 20 }, unitPrice: { halign: 'right', cellWidth: 25 }, discount: { halign: 'right', cellWidth: 24 }, total: { halign: 'right', cellWidth: 28 }, vat: { halign: 'center', cellWidth: 20 } }
+    });
+    y = pdf.lastAutoTable.finalY + 6;
+  }
 
-    function pdfDocTitle(type) {
-      if (type === 'invoice') return 'FACTURE';
-      if (type === 'reminder') return 'RAPPEL';
-      return 'DEVIS';
-    }
+  if (supplies.length) {
+    if (y > 205) { pdf.addPage(); y = 16; }
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(14);
+    pdf.text('Fournitures', margin, y);
+    y += 5;
+    const sBody = supplies.map(line => ({
+      description: pdfClean(line.description || line.label || ''),
+      qty: pdfPlainNumber(pdfLineQty(line)),
+      unit: pdfLineUnit(line),
+      unitPrice: pdfPlainNumber(pdfLineUnitPrice(line)),
+      discount: pdfPlainNumber(pdfLineDiscount(line)),
+      total: pdfMoney(pdfLineTotal(line)),
+      vat: pdfRate(pdfLineVat(line))
+    }));
+    pdf.autoTable({
+      startY: y,
+      margin: { left: margin, right: margin },
+      columns,
+      body: sBody,
+      theme: 'grid',
+      styles: { font: 'helvetica', fontSize: 8.2, cellPadding: 3, lineColor: [204, 209, 216], lineWidth: 0.35, valign: 'middle', textColor: [20, 31, 46] },
+      headStyles: { fillColor: [255, 255, 255], textColor: [45, 49, 58], fontStyle: 'bold' },
+      columnStyles: { description: { cellWidth: 52 }, qty: { halign: 'right', cellWidth: 25 }, unit: { cellWidth: 20 }, unitPrice: { halign: 'right', cellWidth: 25 }, discount: { halign: 'right', cellWidth: 24 }, total: { halign: 'right', cellWidth: 28 }, vat: { halign: 'center', cellWidth: 20 } }
+    });
+    y = pdf.lastAutoTable.finalY + 6;
+  }
 
-    function pdfDocPrefix(type) {
-      if (type === 'invoice') return 'facture';
-      if (type === 'reminder') return 'rappel';
-      return 'devis';
-    }
+  if (y > 222) { pdf.addPage(); y = 18; }
+  const bottomTop = y;
+  pdf.setDrawColor(220, 224, 230);
+  pdf.rect(margin, bottomTop, 118, 31);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(8.5);
+  pdf.text('REMARQUES', margin + 2, bottomTop + 5);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8.2);
+  const paymentLines = [];
+  const paymentAmount = doc.paymentAmount || doc.amountToPay || totals.clientTvac;
+  if (type === 'invoice' || type === 'reminder') paymentLines.push('Paiement : ' + pdfMoney(paymentAmount));
+  if (company.bank) paymentLines.push('Compte : ' + company.bank);
+  const comm = getPdfPaymentCommunication(doc, type);
+  if (comm) paymentLines.push('Communication : ' + comm);
+  if (doc.notes || doc.remark || doc.remarks) paymentLines.push(pdfClean(doc.notes || doc.remark || doc.remarks));
+  pdf.text(pdf.splitTextToSize(paymentLines.join('\n'), 112), margin + 2, bottomTop + 18);
 
-    function getPdfCompany(payload = {}) {
-      const company = payload.company || payload.settings?.company || {};
-      return {
-        name: pdfClean(company.name, 'Bast Aménagement'),
-        address1: pdfClean(company.address1 || company.address || 'Rue du Culot 4'),
-        address2: pdfClean(company.address2 || company.zipCity || '6831 Noirefontaine'),
-        phone: pdfClean(company.phone || company.tel || '+32 478 79 89 76'),
-        email: pdfClean(company.email || 'bast-amenagement@outlook.com'),
-        website: pdfClean(company.website || company.site || 'www.bast-amenagement.com'),
-        vat: pdfClean(company.vat || company.tva || 'BE0799404912'),
-        bank: pdfClean(company.bank || company.iban || 'BE55 0019 4766 7444'),
-        logo: company.logo || company.logoDataUrl || company.logoUrl || ''
-      };
-    }
+  const summaryRows = [
+    ['Total HTVA', pdfMoney(totals.clientHtva || item.clientHtva || item.amount || 0)],
+    ['Total TVA', pdfMoney(totals.clientVat || totals.vat || item.vat || 0)],
+    ['Total TVA incl.', pdfMoney(totals.clientTvac || item.tvac || 0)]
+  ];
+  pdf.autoTable({
+    startY: bottomTop,
+    margin: { left: 130, right: margin },
+    body: summaryRows,
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 3, lineColor: [204, 209, 216], lineWidth: 0.35 },
+    columnStyles: { 0: { cellWidth: 43 }, 1: { halign: 'right', fontStyle: 'bold', cellWidth: 31 } }
+  });
 
-    function getPdfDocumentFromPayload(payload, type, item) {
+  if (type === 'invoice' || type === 'reminder') {
+    const paid = pdfNumber(doc.paidAmount || doc.amountPaid || 0);
+    const balance = Math.max(0, pdfNumber(totals.clientTvac || item.tvac || 0) - paid);
+    pdf.autoTable({
+      startY: pdf.lastAutoTable.finalY + 5,
+      margin: { left: 130, right: margin },
+      body: [['Montant payé', pdfPlainNumber(paid)], ['Payé', pdfMoney(paid)], ['Solde', pdfMoney(balance)]],
+      theme: 'plain',
+      styles: { font: 'helvetica', fontSize: 8.2, cellPadding: 2 },
+      columnStyles: { 0: { cellWidth: 43 }, 1: { halign: 'right', fontStyle: 'bold', cellWidth: 31 } }
+    });
+  }
+
+  if (type === 'invoice' || type === 'reminder') {
+    pdf.addPage();
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(12);
+    pdf.text(pdfDocTitle(type) + ' - Conditions', margin, 16);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7.5);
+    const conditions = pdfClean(doc.conditions || payload.conditions || `Paiement : Toutes nos factures sont payables au comptant, sans escompte et au siège Bast Aménagement, ou à l’un de ses comptes bancaires, sauf stipulation contraire expresse. Toute réclamation concernant une quelconque mention sur les factures devra être faite dans les 8 jours suivant la réception des factures. Les frais de rappels sont facturés au client à concurrence de 15 EUR par facture à titre de frais administratifs. En cas de non-paiement à l’échéance, les sommes dues seront productives de plein droit et sans mise en demeure préalable d’un intérêt de 10 % l’an par mois de retard entamé. Le client est en outre tenu au paiement d’une indemnité complémentaire de 8.5 % du montant dû avec un minimum de 80,00 €. Toutes les autres factures, même non échues, deviennent exigibles de plein droit et sans mise en demeure préalable. L’entreprise se réserve la propriété des marchandises jusqu’au paiement total des factures.\n\nVeuillez retrouver et prendre connaissance de toutes les Conditions générales sur : https://www.bast-amenagement.com/conditions\n\nTaux de TVA à 6% : en l'absence de contestation par écrit dans un délai d'un mois à compter de la réception de la facture, le client est présumé reconnaître que les conditions légales d'application du taux réduit sont remplies. Si ces conditions ne sont pas remplies, le taux normal de TVA de 21 % sera applicable et le client endossera la responsabilité quant au paiement de la taxe, des intérêts et des amendes dus.`);
+    pdf.text(pdf.splitTextToSize(conditions, 190), margin, 25);
+  }
+
+  addPdfPageNumber(pdf);
+  return { pdf, filename: `${pdfDocPrefix(type)}-${number}.pdf`.replace(/[^a-z0-9._-]+/gi, '-') };
+}
+
+async function downloadCrmLinkedDocumentPdf(type, itemId) {
+  try {
+    const item = getLinkedDocumentItem(type, itemId);
+    if (!item) return notify('Document introuvable dans la fiche client.');
+    let payload = await getLinkedDocumentSourcePayload(type, item);
+    if (!payload && item.rawDocument) {
       const key = moneyTypeToDocKey(type);
-      return payload?.[key] || item?.rawDocument || {};
+      payload = { [key]: item.rawDocument, company: readFullCrmDataFromLocalStorage().company || {} };
     }
-
-    function getPdfClient(doc = {}, item = {}, project = {}) {
-      return {
-        name: pdfClean(doc.clientName || item.clientName || project.clientName || project.title, 'Client'),
-        address: pdfClean(doc.clientAddress || doc.address || item.address || project.address, ''),
-        number: pdfClean(doc.clientNumber || doc.clientRef || item.clientRef || project.clientRef, ''),
-        vat: pdfClean(doc.clientVat || doc.vat || item.clientVat || project.clientVat, 'NA'),
-        email: pdfClean(doc.clientEmail || doc.email || item.clientEmail || project.clientEmail || project.email, ''),
-        phone: pdfClean(doc.clientPhone || doc.phone || item.phone || project.phone, ''),
-        site: pdfClean(doc.siteName || doc.siteAddress || item.siteName || '', '')
-      };
-    }
-
-    function pdfLineQty(line) {
-      return line.qty ?? line.quantity ?? line.qte ?? line.amountQty ?? 0;
-    }
-
-    function pdfLineUnit(line) {
-      return pdfClean(line.unit || line.unity || line.unitLabel || line.u || 'p');
-    }
-
-    function pdfLineUnitPrice(line) {
-      return line.unitPrice ?? line.price ?? line.pu ?? line.salePrice ?? 0;
-    }
-
-    function pdfLineDiscount(line) {
-      return line.discount ?? line.remise ?? line.discountPercent ?? 0;
-    }
-
-    function pdfLineVat(line) {
-      return line.vatRate ?? line.tva ?? line.vat ?? line.taxRate ?? 21;
-    }
-
-    function pdfLineTotal(line) {
-      const existing = line.htva ?? line.totalHtva ?? line.totalHTVA ?? line.total ?? line.amount;
-      if (existing !== undefined && existing !== null && existing !== '') return pdfNumber(existing);
-      if (typeof moneyLineHtva === 'function') return pdfNumber(moneyLineHtva(line));
-      const qty = pdfNumber(pdfLineQty(line));
-      const unit = pdfNumber(pdfLineUnitPrice(line));
-      const discount = pdfNumber(pdfLineDiscount(line));
-      return qty * unit * Math.max(0, 1 - discount / 100);
-    }
-
-    function pdfSupplyCost(line) {
-      return line.costHtva ?? line.cost ?? line.purchasePrice ?? line.revient ?? pdfLineTotal(line);
-    }
-
-    function getPdfPaymentCommunication(doc = {}, type = 'invoice') {
-      return pdfClean(doc.communication || doc.paymentCommunication || doc.structuredCommunication || doc.structuredCom || '');
-    }
-
-    function addPdfWrappedText(pdf, text, x, y, maxWidth, options = {}) {
-      const size = options.size || 9;
-      pdf.setFontSize(size);
-      pdf.setFont('helvetica', options.bold ? 'bold' : 'normal');
-      const lines = pdf.splitTextToSize(pdfClean(text), maxWidth);
-      pdf.text(lines, x, y);
-      return y + (lines.length * (options.lineHeight || size * 0.42 + 2));
-    }
-
-    function addPdfPageNumber(pdf) {
-      const count = pdf.internal.getNumberOfPages();
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8);
-      pdf.setTextColor(110, 110, 110);
-      for (let i = 1; i <= count; i++) {
-        pdf.setPage(i);
-        pdf.text('Page ' + i + ' / ' + count, 105, 287, { align: 'center' });
-      }
-      pdf.setTextColor(0, 0, 0);
-    }
-
-    async function addPdfLogo(pdf, company, x, y, size) {
-      try {
-        if (company.logo && /^data:image\//.test(company.logo)) {
-          pdf.addImage(company.logo, undefined, x, y, size, size, undefined, 'FAST');
-          return;
-        }
-      } catch (error) {
-        console.warn('Logo PDF ignoré.', error);
-      }
-      pdf.setDrawColor(210, 215, 222);
-      pdf.circle(x + size / 2, y + size / 2, size / 2, 'S');
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(9);
-      pdf.text('BAST', x + size / 2, y + size / 2 - 1, { align: 'center' });
-      pdf.setFontSize(6);
-      pdf.text('AMENAGEMENT', x + size / 2, y + size / 2 + 5, { align: 'center' });
-    }
-
-    async function buildCommercialDocumentPdf(type, item, payload) {
-      const jsPDF = await ensureDocumentPdfLibraries();
-      if (!jsPDF) throw new Error('Librairie PDF indisponible.');
-
-      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-      const doc = getPdfDocumentFromPayload(payload, type, item);
-      const project = hydrateProjectWithCrm(getProject()) || {};
-      const company = getPdfCompany(payload);
-      const client = getPdfClient(doc, item, project);
-      const totals = documentTotals(doc);
-      const lines = Array.isArray(doc.lines) ? doc.lines : [];
-      const suppliesEnabled = doc.suppliesEnabled !== false;
-      const supplies = suppliesEnabled && Array.isArray(doc.suppliesLines) ? doc.suppliesLines : [];
-      const number = pdfClean(doc.documentNumber || item.ref || 'document');
-      const date = pdfClean(doc.date || item.date || todayISO());
-      const dueDate = pdfClean(doc.dueDate || doc.due || doc.paymentDueDate || '');
-
-      const margin = 10;
-      let y = 14;
-
-      // En-tête proche du modèle facture envoyé.
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(27);
-      pdf.setTextColor(20, 31, 46);
-      pdf.text(pdfDocTitle(type), 112, 13);
-
-      pdf.setFontSize(13);
-      pdf.text(company.name, margin, 30);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9.5);
-      let companyY = 38;
-      [company.address1, company.address2, 'Tél. ' + company.phone, company.email, company.website, 'TVA ' + company.vat].filter(Boolean).forEach(line => {
-        pdf.text(line, margin, companyY);
-        companyY += 6;
-      });
-      await addPdfLogo(pdf, company, 72, 42, 24);
-
-      pdf.setDrawColor(220, 224, 230);
-      pdf.rect(108, 22, 96, 46);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8.5);
-      pdf.text('CLIENT', 111, 29);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8.7);
-      let cy = 36;
-      [client.name, client.address, client.site, client.email ? 'E-mail : ' + client.email : '', client.phone ? 'Tel : ' + client.phone : ''].filter(Boolean).forEach(block => {
-        const parts = pdf.splitTextToSize(block, 88);
-        pdf.text(parts, 111, cy);
-        cy += Math.max(5, parts.length * 4.2);
-      });
-
-      const metaHead = type === 'invoice' || type === 'reminder'
-        ? [['N° DOCUMENT', "DATE\nD’ÉCHÉANCE", 'VOTRE N° DE CLIENT', 'VOTRE N° TVA', 'DATE']]
-        : [['N° DOCUMENT', 'DATE', 'VOTRE N° DE CLIENT', 'VOTRE N° TVA', 'VALIDITÉ']];
-      const metaBody = type === 'invoice' || type === 'reminder'
-        ? [[number, dueDate || '—', client.number || '—', client.vat || 'NA', date]]
-        : [[number, date, client.number || '—', client.vat || 'NA', doc.validUntil || doc.validity || '—']];
-      pdf.autoTable({
-        startY: 78,
-        margin: { left: margin, right: margin },
-        head: metaHead,
-        body: metaBody,
-        theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 8.2, cellPadding: 3, lineColor: [204, 209, 216], lineWidth: 0.35, textColor: [26, 34, 48] },
-        headStyles: { fillColor: [255, 255, 255], textColor: [45, 49, 58], fontStyle: 'bold' },
-        bodyStyles: { fillColor: [255, 255, 255] }
-      });
-
-      y = pdf.lastAutoTable.finalY + 5;
-      const columns = [
-        { header: 'DESCRIPTION', dataKey: 'description' },
-        { header: 'QUANTITÉ', dataKey: 'qty' },
-        { header: 'UNITÉ', dataKey: 'unit' },
-        { header: 'PR. UNIT.', dataKey: 'unitPrice' },
-        { header: 'REMISE', dataKey: 'discount' },
-        { header: 'TOTAL', dataKey: 'total' },
-        { header: 'TVA', dataKey: 'vat' }
-      ];
-      const body = lines.map(line => ({
-        description: pdfClean(line.description || line.label || ''),
-        qty: pdfPlainNumber(pdfLineQty(line)),
-        unit: pdfLineUnit(line),
-        unitPrice: pdfPlainNumber(pdfLineUnitPrice(line)),
-        discount: pdfPlainNumber(pdfLineDiscount(line)),
-        total: pdfMoney(pdfLineTotal(line)),
-        vat: pdfRate(pdfLineVat(line))
-      }));
-
-      if (body.length) {
-        pdf.autoTable({
-          startY: y,
-          margin: { left: margin, right: margin },
-          columns,
-          body,
-          theme: 'grid',
-          styles: { font: 'helvetica', fontSize: 8.2, cellPadding: 3, lineColor: [204, 209, 216], lineWidth: 0.35, valign: 'middle', textColor: [20, 31, 46] },
-          headStyles: { fillColor: [255, 255, 255], textColor: [45, 49, 58], fontStyle: 'bold' },
-          columnStyles: { description: { cellWidth: 52 }, qty: { halign: 'right', cellWidth: 25 }, unit: { cellWidth: 20 }, unitPrice: { halign: 'right', cellWidth: 25 }, discount: { halign: 'right', cellWidth: 24 }, total: { halign: 'right', cellWidth: 28 }, vat: { halign: 'center', cellWidth: 20 } }
-        });
-        y = pdf.lastAutoTable.finalY + 6;
-      }
-
-      if (supplies.length) {
-        if (y > 205) { pdf.addPage(); y = 16; }
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(14);
-        pdf.text('Fournitures', margin, y);
-        y += 5;
-        const sBody = supplies.map(line => ({
-          description: pdfClean(line.description || line.label || ''),
-          qty: pdfPlainNumber(pdfLineQty(line)),
-          unit: pdfLineUnit(line),
-          unitPrice: pdfPlainNumber(pdfLineUnitPrice(line)),
-          discount: pdfPlainNumber(pdfLineDiscount(line)),
-          total: pdfMoney(pdfLineTotal(line)),
-          vat: pdfRate(pdfLineVat(line))
-        }));
-        pdf.autoTable({
-          startY: y,
-          margin: { left: margin, right: margin },
-          columns,
-          body: sBody,
-          theme: 'grid',
-          styles: { font: 'helvetica', fontSize: 8.2, cellPadding: 3, lineColor: [204, 209, 216], lineWidth: 0.35, valign: 'middle', textColor: [20, 31, 46] },
-          headStyles: { fillColor: [255, 255, 255], textColor: [45, 49, 58], fontStyle: 'bold' },
-          columnStyles: { description: { cellWidth: 52 }, qty: { halign: 'right', cellWidth: 25 }, unit: { cellWidth: 20 }, unitPrice: { halign: 'right', cellWidth: 25 }, discount: { halign: 'right', cellWidth: 24 }, total: { halign: 'right', cellWidth: 28 }, vat: { halign: 'center', cellWidth: 20 } }
-        });
-        y = pdf.lastAutoTable.finalY + 6;
-      }
-
-      if (y > 222) { pdf.addPage(); y = 18; }
-      const bottomTop = y;
-      pdf.setDrawColor(220, 224, 230);
-      pdf.rect(margin, bottomTop, 118, 31);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8.5);
-      pdf.text('REMARQUES', margin + 2, bottomTop + 5);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8.2);
-      const paymentLines = [];
-      const paymentAmount = doc.paymentAmount || doc.amountToPay || totals.clientTvac;
-      if (type === 'invoice' || type === 'reminder') paymentLines.push('Paiement : ' + pdfMoney(paymentAmount));
-      if (company.bank) paymentLines.push('Compte : ' + company.bank);
-      const comm = getPdfPaymentCommunication(doc, type);
-      if (comm) paymentLines.push('Communication : ' + comm);
-      if (doc.notes || doc.remark || doc.remarks) paymentLines.push(pdfClean(doc.notes || doc.remark || doc.remarks));
-      pdf.text(pdf.splitTextToSize(paymentLines.join('\n'), 112), margin + 2, bottomTop + 18);
-
-      const summaryRows = [
-        ['Total HTVA', pdfMoney(totals.clientHtva || item.clientHtva || item.amount || 0)],
-        ['Total TVA', pdfMoney(totals.clientVat || totals.vat || item.vat || 0)],
-        ['Total TVA incl.', pdfMoney(totals.clientTvac || item.tvac || 0)]
-      ];
-      pdf.autoTable({
-        startY: bottomTop,
-        margin: { left: 130, right: margin },
-        body: summaryRows,
-        theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 3, lineColor: [204, 209, 216], lineWidth: 0.35 },
-        columnStyles: { 0: { cellWidth: 43 }, 1: { halign: 'right', fontStyle: 'bold', cellWidth: 31 } }
-      });
-
-      if (type === 'invoice' || type === 'reminder') {
-        const paid = pdfNumber(doc.paidAmount || doc.amountPaid || 0);
-        const balance = Math.max(0, pdfNumber(totals.clientTvac || item.tvac || 0) - paid);
-        pdf.autoTable({
-          startY: pdf.lastAutoTable.finalY + 5,
-          margin: { left: 130, right: margin },
-          body: [['Montant payé', pdfPlainNumber(paid)], ['Payé', pdfMoney(paid)], ['Solde', pdfMoney(balance)]],
-          theme: 'plain',
-          styles: { font: 'helvetica', fontSize: 8.2, cellPadding: 2 },
-          columnStyles: { 0: { cellWidth: 43 }, 1: { halign: 'right', fontStyle: 'bold', cellWidth: 31 } }
-        });
-      }
-
-      if (type === 'invoice' || type === 'reminder') {
-        pdf.addPage();
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(12);
-        pdf.text(pdfDocTitle(type) + ' - Conditions', margin, 16);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(7.5);
-        const conditions = pdfClean(doc.conditions || payload.conditions || `Paiement : Toutes nos factures sont payables au comptant, sans escompte et au siège Bast Aménagement, ou à l’un de ses comptes bancaires, sauf stipulation contraire expresse. Toute réclamation concernant une quelconque mention sur les factures devra être faite dans les 8 jours suivant la réception des factures. Les frais de rappels sont facturés au client à concurrence de 15 EUR par facture à titre de frais administratifs. En cas de non-paiement à l’échéance, les sommes dues seront productives de plein droit et sans mise en demeure préalable d’un intérêt de 10 % l’an par mois de retard entamé. Le client est en outre tenu au paiement d’une indemnité complémentaire de 8.5 % du montant dû avec un minimum de 80,00 €. Toutes les autres factures, même non échues, deviennent exigibles de plein droit et sans mise en demeure préalable. L’entreprise se réserve la propriété des marchandises jusqu’au paiement total des factures.\n\nVeuillez retrouver et prendre connaissance de toutes les Conditions générales sur : https://www.bast-amenagement.com/conditions\n\nTaux de TVA à 6% : en l'absence de contestation par écrit dans un délai d'un mois à compter de la réception de la facture, le client est présumé reconnaître que les conditions légales d'application du taux réduit sont remplies. Si ces conditions ne sont pas remplies, le taux normal de TVA de 21 % sera applicable et le client endossera la responsabilité quant au paiement de la taxe, des intérêts et des amendes dus.`);
-        pdf.text(pdf.splitTextToSize(conditions, 190), margin, 25);
-      }
-
-      addPdfPageNumber(pdf);
-      return { pdf, filename: `${pdfDocPrefix(type)}-${number}.pdf`.replace(/[^a-z0-9._-]+/gi, '-') };
-    }
-
-    async function downloadCrmLinkedDocumentPdf(type, itemId) {
-      try {
-        const item = getLinkedDocumentItem(type, itemId);
-        if (!item) return notify('Document introuvable dans la fiche client.');
-        let payload = await getLinkedDocumentSourcePayload(type, item);
-        if (!payload && item.rawDocument) {
-          const key = moneyTypeToDocKey(type);
-          payload = { [key]: item.rawDocument, company: readFullCrmDataFromLocalStorage().company || {} };
-        }
-        if (!payload) return notify('Impossible de générer le PDF : source du document introuvable. Rechargez le document JSON ou Google Drive.');
-        notify('Génération du PDF en cours…');
-        const result = await buildCommercialDocumentPdf(type, item, payload);
-        result.pdf.save(result.filename);
-        notify('PDF téléchargé.');
-      } catch (error) {
-        console.error('Export PDF document impossible.', error);
-        notify('Erreur : le PDF n’a pas pu être généré.');
-      }
-    }
+    if (!payload) return notify('Impossible de générer le PDF : source du document introuvable. Rechargez le document JSON ou Google Drive.');
+    notify('Génération du PDF en cours…');
+    const result = await buildCommercialDocumentPdf(type, item, payload);
+    result.pdf.save(result.filename);
+    notify('PDF téléchargé.');
+  } catch (error) {
+    console.error('Export PDF document impossible.', error);
+    notify('Erreur : le PDF n’a pas pu être généré.');
+  }
+}
 
 
-    async function loadCrmLinkedDocumentInDevis(type, itemId) {
-      const item = getLinkedDocumentItem(type, itemId);
-      if (!item) return notify('Document introuvable dans la fiche client.');
-      const docKey = moneyTypeToDocKey(type);
-      const payload = await getLinkedDocumentSourcePayload(type, item);
-      if (!payload?.[docKey]) return notify('Impossible de charger ce document : fichier source introuvable.');
-      const current = readFullCrmDataFromLocalStorage();
-      current[docKey] = payload[docKey];
-      if (Array.isArray(payload.clients) && payload.clients.length) current.clients = payload.clients;
-      if (payload.company) current.company = payload.company;
-      if (payload.mail) current.mail = payload.mail;
-      writeFullCrmDataToLocalStorage(current);
-      try {
-        const targetOrigin = window.location.origin && window.location.origin !== 'null' ? window.location.origin : '*';
-        window.parent?.postMessage({ type: 'BASTCOMPTA_OPEN_DEVIS_DOCUMENT', docKey }, targetOrigin);
-      } catch (error) {
-        console.warn('Ouverture Devis & Facture impossible.', error);
-      }
-      notify(`${moneyTypeLabel(type)} ${item.ref || ''} chargé dans Devis & Facture.`);
-    }
+async function loadCrmLinkedDocumentInDevis(type, itemId) {
+  const item = getLinkedDocumentItem(type, itemId);
+  if (!item) return notify('Document introuvable dans la fiche client.');
+  const docKey = moneyTypeToDocKey(type);
+  const payload = await getLinkedDocumentSourcePayload(type, item);
+  if (!payload?.[docKey]) return notify('Impossible de charger ce document : fichier source introuvable.');
+  const current = readFullCrmDataFromLocalStorage();
+  current[docKey] = payload[docKey];
+  if (Array.isArray(payload.clients) && payload.clients.length) current.clients = payload.clients;
+  if (payload.company) current.company = payload.company;
+  if (payload.mail) current.mail = payload.mail;
+  writeFullCrmDataToLocalStorage(current);
+  try {
+    const targetOrigin = window.location.origin && window.location.origin !== 'null' ? window.location.origin : '*';
+    window.parent?.postMessage({ type: 'BASTCOMPTA_OPEN_DEVIS_DOCUMENT', docKey }, targetOrigin);
+  } catch (error) {
+    console.warn('Ouverture Devis & Facture impossible.', error);
+  }
+  notify(`${moneyTypeLabel(type)} ${item.ref || ''} chargé dans Devis & Facture.`);
+}
 
-    async function downloadCrmLinkedDocument(type, itemId) {
-      const item = getLinkedDocumentItem(type, itemId);
-      if (!item) return notify('Document introuvable dans la fiche client.');
-      let text = '';
-      let filename = item.fileName || `${moneyTypeToDocKey(type)}-${item.ref || 'document'}.json`;
-      if (item.fileId && googleAccessToken) {
-        const response = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${item.fileId}?alt=media`, {
-          headers: { Authorization: `Bearer ${googleAccessToken}` }
-        }, false);
-        if (response?.ok) text = await response.text();
-      }
-      if (!text) {
-        const payload = await getLinkedDocumentSourcePayload(type, item);
-        if (!payload) return notify('Impossible de télécharger ce document : source introuvable.');
-        text = JSON.stringify(payload, null, 2);
-      }
-      const blob = new Blob([text], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
+async function downloadCrmLinkedDocument(type, itemId) {
+  const item = getLinkedDocumentItem(type, itemId);
+  if (!item) return notify('Document introuvable dans la fiche client.');
+  let text = '';
+  let filename = item.fileName || `${moneyTypeToDocKey(type)}-${item.ref || 'document'}.json`;
+  if (item.fileId && googleAccessToken) {
+    const response = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${item.fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${googleAccessToken}` }
+    }, false);
+    if (response?.ok) text = await response.text();
+  }
+  if (!text) {
+    const payload = await getLinkedDocumentSourcePayload(type, item);
+    if (!payload) return notify('Impossible de télécharger ce document : source introuvable.');
+    text = JSON.stringify(payload, null, 2);
+  }
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
-    async function deleteCrmLinkedDocument(type, itemId) {
-      const project = getProject();
-      const item = getLinkedDocumentItem(type, itemId);
-      if (!project || !item) return notify('Document introuvable dans la fiche client.');
-      const listName = type === 'quote' ? 'linkedQuotes' : type === 'invoice' ? 'linkedInvoices' : 'linkedReminders';
-      const hasDriveFile = !!item.fileId;
-      const message = hasDriveFile
-        ? `Supprimer le fichier Drive ${item.fileName || item.ref} et le retirer de cette fiche client ?`
-        : `Retirer ${moneyTypeLabel(type)} ${item.ref || ''} de cette fiche client ?`;
-      if (!confirm(message)) return;
-      if (hasDriveFile && googleAccessToken) {
-        const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${item.fileId}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${googleAccessToken}` }
-        }, false);
-        if (!res || !res.ok) return notify('Suppression Drive impossible. Le document n’a pas été retiré.');
-      }
-      project[listName] = (project[listName] || []).filter(row => String(row.id || '') !== String(item.id || '') && String(row.ref || '') !== String(item.ref || ''));
-      addTimeline(project, `${moneyTypeLabel(type)} ${item.ref || ''} supprimé/retiré de la fiche client.`);
-      await saveData(false);
-      renderMain();
-      notify('Document retiré de la fiche client.');
-    }
+async function deleteCrmLinkedDocument(type, itemId) {
+  const project = getProject();
+  const item = getLinkedDocumentItem(type, itemId);
+  if (!project || !item) return notify('Document introuvable dans la fiche client.');
+  const listName = type === 'quote' ? 'linkedQuotes' : type === 'invoice' ? 'linkedInvoices' : 'linkedReminders';
+  const hasDriveFile = !!item.fileId;
+  const message = hasDriveFile
+    ? `Supprimer le fichier Drive ${item.fileName || item.ref} et le retirer de cette fiche client ?`
+    : `Retirer ${moneyTypeLabel(type)} ${item.ref || ''} de cette fiche client ?`;
+  if (!confirm(message)) return;
+  if (hasDriveFile && googleAccessToken) {
+    const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${item.fileId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${googleAccessToken}` }
+    }, false);
+    if (!res || !res.ok) return notify('Suppression Drive impossible. Le document n’a pas été retiré.');
+  }
+  project[listName] = (project[listName] || []).filter(row => String(row.id || '') !== String(item.id || '') && String(row.ref || '') !== String(item.ref || ''));
+  addTimeline(project, `${moneyTypeLabel(type)} ${item.ref || ''} supprimé/retiré de la fiche client.`);
+  await saveData(false);
+  renderMain();
+  notify('Document retiré de la fiche client.');
+}
 
-    function renderDocumentsTab(project) {
-      return `
+function renderDocumentsTab(project) {
+  return `
         <div class="form-card">
           <div class="section-head">
             <div>
@@ -1638,10 +1638,10 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           </div>
         </div>
       `;
-    }
+}
 
-    function renderTasksTab(project) {
-      return `
+function renderTasksTab(project) {
+  return `
         <div class="form-card">
           <div class="section-head">
             <h3 class="section-title">Tâches client</h3>
@@ -1662,10 +1662,10 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           </div>
         </div>
       `;
-    }
+}
 
-    function renderNotesTab(project) {
-      return `
+function renderNotesTab(project) {
+  return `
         <div class="form-card">
           <div class="section-head">
             <h3 class="section-title">Remarques</h3>
@@ -1685,10 +1685,10 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           </div>
         </div>
       `;
-    }
+}
 
-    function renderHistoryTab(project) {
-      return `
+function renderHistoryTab(project) {
+  return `
         <div class="form-card">
           <div class="section-head">
             <h3 class="section-title">Historique automatique</h3>
@@ -1704,384 +1704,384 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           </div>
         </div>
       `;
+}
+
+function openProjectModal(id = '') {
+  editingProjectId = id;
+  const project = id ? data.projects.find(item => item.id === id) : null;
+
+  document.getElementById('projectModalTitle').textContent = project ? 'Modifier le client' : 'Nouveau client';
+  document.getElementById('formTitle').value = project?.title || '';
+  document.getElementById('formStatus').value = project?.status || 'planned';
+  document.getElementById('formClientName').value = project?.clientName || '';
+  document.getElementById('formClientRef').value = project?.clientRef || '';
+  document.getElementById('formStartDate').value = project?.startDate || '';
+  document.getElementById('formEndDate').value = project?.endDate || '';
+  document.getElementById('formAddress').value = project?.address || '';
+  document.getElementById('formDescription').value = project?.description || '';
+
+  document.getElementById('projectModalBackdrop').classList.add('open');
+}
+
+function closeProjectModal() {
+  document.getElementById('projectModalBackdrop').classList.remove('open');
+  editingProjectId = '';
+}
+
+async function submitProjectForm() {
+  const payload = {
+    title: document.getElementById('formTitle').value.trim(),
+    status: document.getElementById('formStatus').value,
+    clientName: document.getElementById('formClientName').value.trim(),
+    clientRef: document.getElementById('formClientRef').value.trim(),
+    startDate: document.getElementById('formStartDate').value,
+    endDate: document.getElementById('formEndDate').value,
+    address: document.getElementById('formAddress').value.trim(),
+    description: document.getElementById('formDescription').value.trim()
+  };
+
+  if (!payload.clientName) {
+    notify('Le nom du client est obligatoire.');
+    return;
+  }
+  payload.title = payload.clientName;
+
+  if (editingProjectId) {
+    const project = data.projects.find(item => item.id === editingProjectId);
+    Object.assign(project, payload, { updatedAt: new Date().toISOString() });
+    addTimeline(project, 'Fiche client modifiée.');
+    selectedProjectId = project.id;
+  } else {
+    const project = normalizeProject({
+      ...payload,
+      id: uid('client'),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    addTimeline(project, 'Fiche client créée.');
+    data.projects.unshift(project);
+    selectedProjectId = project.id;
+  }
+
+  closeProjectModal();
+  await saveData();
+}
+
+function updateProjectField(field, value) {
+  const project = getProject();
+  if (!project) return;
+  project[field] = field === 'quoteAmount' ? Number(value) || 0 : value;
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, 'Champ "' + field + '" mis à jour.');
+  saveData(false);
+  render();
+}
+
+async function deleteProject(id) {
+  const project = data.projects.find(item => item.id === id);
+  if (!project) return;
+  if (!confirm('Supprimer définitivement le suivi client "' + project.title + '" ?')) return;
+
+  data.projects = data.projects.filter(item => item.id !== id);
+  selectedProjectId = data.projects[0]?.id || '';
+  await saveData();
+  notify('Suivi client supprimé.');
+}
+
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/`/g, '&#096;');
+}
+
+function normalizeLinkKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function roundMoney(value) {
+  return Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function loadDevisFactureData() {
+  try {
+    const raw = localStorage.getItem(DEVIS_FACTURE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.error('Impossible de lire Devis & Facture.', error);
+    return {};
+  }
+}
+
+function moneyLineHtva(line) {
+  const qty = Number(line?.qty ?? line?.quantity ?? 0) || 0;
+  const unitPrice = Number(line?.unitPrice ?? line?.price ?? 0) || 0;
+  const discount = Number(line?.discount ?? 0) || 0;
+  return qty * unitPrice * (1 - discount / 100);
+}
+
+function moneyLineVat(line) {
+  const vatRate = Number(line?.vatRate ?? line?.vat ?? 21) || 0;
+  return moneyLineHtva(line) * vatRate / 100;
+}
+
+function moneyLineCostHtva(line) {
+  const qty = Number(line?.qty ?? line?.quantity ?? 0) || 0;
+  // Prix de revient interne. Si absent dans un ancien JSON, on reprend le prix facturé pour ne pas fausser l'ancien calcul.
+  const costPrice = Number(line?.costPrice ?? line?.purchasePrice ?? line?.cost ?? line?.unitCost ?? line?.unitPrice ?? line?.price ?? 0) || 0;
+  return qty * costPrice;
+}
+
+function documentTotals(doc) {
+  const lines = Array.isArray(doc?.lines) ? doc.lines : (Array.isArray(doc?.items) ? doc.items : []);
+  const suppliesLines = doc?.suppliesEnabled && Array.isArray(doc?.suppliesLines) ? doc.suppliesLines : [];
+
+  let workHtva = sum(lines.map(moneyLineHtva));
+  let workVat = sum(lines.map(moneyLineVat));
+  const suppliesSaleHtva = sum(suppliesLines.map(moneyLineHtva));
+  const suppliesVat = sum(suppliesLines.map(moneyLineVat));
+  const suppliesCostHtva = sum(suppliesLines.map(moneyLineCostHtva));
+
+  if (!workHtva) workHtva = Number(doc?.workHtva ?? doc?.htva ?? doc?.totalHtva ?? doc?.totalHTVA ?? doc?.totalHt ?? doc?.totalHT ?? doc?.amount ?? 0) || 0;
+  if (!workVat) workVat = Number(doc?.workVat ?? doc?.vat ?? doc?.totalVat ?? doc?.totalVAT ?? 0) || 0;
+
+  const clientHtva = roundMoney(workHtva + suppliesSaleHtva);
+  const clientVat = roundMoney(workVat + suppliesVat);
+  const clientTvac = Number(doc?.totalTvac ?? doc?.totalTVAC ?? doc?.totalTtc ?? doc?.totalTTC ?? 0) || (clientHtva + clientVat);
+
+  return {
+    htva: roundMoney(workHtva),
+    vat: roundMoney(workVat),
+    tvac: roundMoney(workHtva + workVat),
+    clientHtva,
+    clientVat,
+    clientTvac: roundMoney(clientTvac),
+    suppliesHtva: roundMoney(suppliesSaleHtva),
+    suppliesSaleHtva: roundMoney(suppliesSaleHtva),
+    suppliesCostHtva: roundMoney(suppliesCostHtva),
+    suppliesVat: roundMoney(suppliesVat),
+    suppliesTvac: roundMoney(suppliesSaleHtva + suppliesVat),
+    suppliesMarginHtva: roundMoney(suppliesSaleHtva - suppliesCostHtva)
+  };
+}
+
+function clientMatchesProject(project, doc) {
+  const projectClientId = String(project.clientId || '').trim();
+  const projectRef = String(project.clientRef || '').trim();
+  const projectName = normalizeLinkKey(project.clientName || '');
+  const docClientId = String(doc.clientId || '').trim();
+  const docRef = String(doc.clientNumber || doc.clientRef || '').trim();
+  const docName = normalizeLinkKey(doc.clientName || '');
+  return (!!projectClientId && projectClientId === docClientId)
+    || (!!projectRef && projectRef === docRef)
+    || (!!projectName && projectName === docName);
+}
+
+function buildCrmDocEntry(docKey, doc, source, fileMeta = {}) {
+  const number = String(doc?.documentNumber || '').trim();
+  if (!number) return null;
+  const labels = { quote: 'Devis', invoice: 'Facture', reminder: 'Rappel' };
+  const lists = { quote: 'linkedQuotes', invoice: 'linkedInvoices', reminder: 'linkedReminders' };
+  const totals = documentTotals(doc);
+  return {
+    key: docKey,
+    list: lists[docKey],
+    ref: number,
+    uniqueKey: `${docKey}:${number}:${fileMeta.id || source}`,
+    label: labels[docKey],
+    date: doc.date || '',
+    description: `${labels[docKey]} ${number}`,
+    amount: totals.clientHtva,
+    clientHtva: totals.clientHtva,
+    totalClientHtva: totals.clientHtva,
+    workHtva: totals.htva,
+    htva: totals.htva,
+    vat: totals.vat,
+    tvac: totals.clientTvac,
+    suppliesCost: totals.suppliesCostHtva,
+    suppliesCostHtva: totals.suppliesCostHtva,
+    costHtva: totals.suppliesCostHtva,
+    suppliesHtva: totals.suppliesHtva,
+    suppliesSaleHtva: totals.suppliesSaleHtva,
+    suppliesVat: totals.suppliesVat,
+    suppliesTvac: totals.suppliesTvac,
+    suppliesMarginHtva: totals.suppliesMarginHtva,
+    clientId: doc.clientId || '',
+    clientName: doc.clientName || '',
+    clientRef: doc.clientNumber || doc.clientRef || '',
+    siteName: doc.siteName || '',
+    source,
+    fileId: fileMeta.id || '',
+    fileName: fileMeta.name || '',
+    modifiedTime: fileMeta.modifiedTime || '',
+    rawDocument: doc || {}
+  };
+}
+
+function getLocalCrmDocumentsForProject(project) {
+  const devisData = loadDevisFactureData();
+  return ['quote', 'invoice', 'reminder']
+    .map(key => buildCrmDocEntry(key, devisData[key] || {}, 'localStorage'))
+    .filter(Boolean)
+    .filter(doc => clientMatchesProject(project, doc));
+}
+
+async function fetchDriveJson(fileId) {
+  const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${googleAccessToken}` }
+  }, false);
+  if (!res || !res.ok) return null;
+  try { return await res.json(); } catch { return null; }
+}
+
+async function getDriveCrmDocumentsForProject(project) {
+  if (!googleAccessToken) return [];
+  const list = await driveFilesList({
+    spaces: 'appDataFolder',
+    q: "mimeType='application/json' and trashed=false",
+    orderBy: 'modifiedTime desc',
+    pageSize: 100,
+    fields: 'files(id, name, modifiedTime)'
+  }, false);
+  if (!list) return [];
+  const files = (list.result.files || []).filter(file => /^(devis|facture|rappel)-.+\.json$/i.test(file.name || ''));
+  const docs = [];
+  for (const file of files) {
+    const parsed = await fetchDriveJson(file.id);
+    if (!parsed) continue;
+    const lowerName = String(file.name || '').toLowerCase();
+    const keys = lowerName.startsWith('devis-') ? ['quote'] : lowerName.startsWith('facture-') ? ['invoice'] : lowerName.startsWith('rappel-') ? ['reminder'] : [];
+    for (const key of keys) {
+      const entry = buildCrmDocEntry(key, parsed[key] || {}, 'Google Drive', file);
+      if (entry && clientMatchesProject(project, entry)) docs.push(entry);
     }
+  }
+  return docs;
+}
 
-    function openProjectModal(id = '') {
-      editingProjectId = id;
-      const project = id ? data.projects.find(item => item.id === id) : null;
+function extractCrmDocsFromJson(parsed, fileName = '') {
+  const docs = [];
+  const map = [
+    ['quote', parsed?.quote],
+    ['invoice', parsed?.invoice],
+    ['reminder', parsed?.reminder]
+  ];
+  for (const [key, doc] of map) {
+    const entry = buildCrmDocEntry(key, doc || {}, 'fichier PC', { name: fileName });
+    if (entry) docs.push(entry);
+  }
+  return docs;
+}
 
-      document.getElementById('projectModalTitle').textContent = project ? 'Modifier le client' : 'Nouveau client';
-      document.getElementById('formTitle').value = project?.title || '';
-      document.getElementById('formStatus').value = project?.status || 'planned';
-      document.getElementById('formClientName').value = project?.clientName || '';
-      document.getElementById('formClientRef').value = project?.clientRef || '';
-      document.getElementById('formStartDate').value = project?.startDate || '';
-      document.getElementById('formEndDate').value = project?.endDate || '';
-      document.getElementById('formAddress').value = project?.address || '';
-      document.getElementById('formDescription').value = project?.description || '';
-
-      document.getElementById('projectModalBackdrop').classList.add('open');
+async function handleCrmJsonFiles(event) {
+  const project = getProject();
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  if (!project || !files.length) return;
+  const docs = [];
+  for (const file of files) {
+    try {
+      const parsed = JSON.parse(await file.text());
+      docs.push(...extractCrmDocsFromJson(parsed, file.name));
+    } catch (error) {
+      console.error(error);
+      notify('Un fichier JSON n’a pas pu être lu : ' + file.name);
     }
+  }
+  crmDocumentLinkCache = dedupeCrmDocs([...(crmDocumentLinkCache || []), ...docs.filter(doc => clientMatchesProject(project, doc))]);
+  renderCrmDocumentLinkModal();
+}
 
-    function closeProjectModal() {
-      document.getElementById('projectModalBackdrop').classList.remove('open');
-      editingProjectId = '';
-    }
+let crmDocumentLinkCache = [];
 
-    async function submitProjectForm() {
-      const payload = {
-        title: document.getElementById('formTitle').value.trim(),
-        status: document.getElementById('formStatus').value,
-        clientName: document.getElementById('formClientName').value.trim(),
-        clientRef: document.getElementById('formClientRef').value.trim(),
-        startDate: document.getElementById('formStartDate').value,
-        endDate: document.getElementById('formEndDate').value,
-        address: document.getElementById('formAddress').value.trim(),
-        description: document.getElementById('formDescription').value.trim()
-      };
+function dedupeCrmDocs(docs) {
+  const seen = new Set();
+  return docs.filter(doc => {
+    const key = `${doc.key}:${doc.ref}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || a.label.localeCompare(b.label));
+}
 
-      if (!payload.clientName) {
-        notify('Le nom du client est obligatoire.');
-        return;
-      }
-      payload.title = payload.clientName;
+function isMoneyLinked(project, type, ref) {
+  const list = type === 'quote' ? project.linkedQuotes : type === 'invoice' ? project.linkedInvoices : (project.linkedReminders || []);
+  return (list || []).some(item => String(item.ref || '') === String(ref));
+}
 
-      if (editingProjectId) {
-        const project = data.projects.find(item => item.id === editingProjectId);
-        Object.assign(project, payload, { updatedAt: new Date().toISOString() });
-        addTimeline(project, 'Fiche client modifiée.');
-        selectedProjectId = project.id;
-      } else {
-        const project = normalizeProject({
-          ...payload,
-          id: uid('client'),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-        addTimeline(project, 'Fiche client créée.');
-        data.projects.unshift(project);
-        selectedProjectId = project.id;
-      }
+async function toggleCrmDocumentLink(type, ref, checked) {
+  const project = getProject();
+  if (!project) return;
+  const doc = crmDocumentLinkCache.find(item => item.key === type && String(item.ref) === String(ref));
+  if (!doc) return;
+  const listName = doc.list;
+  if (!Array.isArray(project[listName])) project[listName] = [];
+  if (checked) {
+    const payload = {
+      id: `${type}-${doc.ref}`,
+      date: doc.date,
+      ref: doc.ref,
+      description: doc.description,
+      amount: doc.clientHtva || doc.totalClientHtva || doc.htva,
+      clientHtva: doc.clientHtva || doc.totalClientHtva || doc.htva,
+      totalClientHtva: doc.clientHtva || doc.totalClientHtva || doc.htva,
+      workHtva: doc.workHtva || doc.htva,
+      htva: doc.htva,
+      vat: doc.vat,
+      tvac: doc.tvac,
+      suppliesCost: doc.suppliesCost || doc.suppliesCostHtva || doc.suppliesHtva || 0,
+      suppliesCostHtva: doc.suppliesCostHtva || doc.suppliesCost || doc.suppliesHtva || 0,
+      costHtva: doc.costHtva || doc.suppliesCostHtva || doc.suppliesCost || doc.suppliesHtva || 0,
+      suppliesHtva: doc.suppliesHtva || doc.suppliesSaleHtva || 0,
+      suppliesSaleHtva: doc.suppliesSaleHtva || doc.suppliesHtva || 0,
+      suppliesVat: doc.suppliesVat || 0,
+      suppliesTvac: doc.suppliesTvac || 0,
+      source: doc.source,
+      fileId: doc.fileId,
+      fileName: doc.fileName,
+      docKey: type,
+      suiviClientId: project.id,
+      clientId: doc.clientId,
+      clientName: doc.clientName,
+      clientRef: doc.clientRef,
+      siteName: project.title
+    };
+    const stableKey = String(payload.documentUid || payload.id || payload.ref || '').trim();
+    const existing = project[listName].find(item =>
+      (stableKey && String(item.documentUid || item.id || '').trim() === stableKey)
+      || String(item.ref || '').trim() === String(doc.ref || '').trim()
+    );
+    if (existing) Object.assign(existing, payload, { documentUid: stableKey });
+    else project[listName].push(Object.assign(payload, { documentUid: stableKey }));
+    project.clientId = project.clientId || doc.clientId || '';
+    project.clientName = project.clientName || doc.clientName || '';
+    project.clientRef = project.clientRef || doc.clientRef || '';
+    addTimeline(project, `${doc.description} lié au client.`);
+  } else {
+    project[listName] = project[listName].filter(item => String(item.ref || '') !== String(doc.ref));
+    addTimeline(project, `${doc.description} retiré du client.`);
+  }
+  project.updatedAt = new Date().toISOString();
+  await saveData(false);
+  renderMain();
+}
 
-      closeProjectModal();
-      await saveData();
-    }
+async function linkAllClientCrmDocuments() {
+  for (const doc of crmDocumentLinkCache) {
+    // Met aussi à jour les documents déjà liés si une facture a été modifiée dans Devis & Facture.
+    await toggleCrmDocumentLink(doc.key, doc.ref, true);
+  }
+  closeGenericModal();
+  notify('Documents du client liés / mis à jour.');
+}
 
-    function updateProjectField(field, value) {
-      const project = getProject();
-      if (!project) return;
-      project[field] = field === 'quoteAmount' ? Number(value) || 0 : value;
-      project.updatedAt = new Date().toISOString();
-      addTimeline(project, 'Champ "' + field + '" mis à jour.');
-      saveData(false);
-      render();
-    }
-
-    async function deleteProject(id) {
-      const project = data.projects.find(item => item.id === id);
-      if (!project) return;
-      if (!confirm('Supprimer définitivement le suivi client "' + project.title + '" ?')) return;
-
-      data.projects = data.projects.filter(item => item.id !== id);
-      selectedProjectId = data.projects[0]?.id || '';
-      await saveData();
-      notify('Suivi client supprimé.');
-    }
-
-
-    function escapeAttr(value) {
-      return escapeHtml(value).replace(/`/g, '&#096;');
-    }
-
-    function normalizeLinkKey(value) {
-      return String(value || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, ' ')
-        .trim();
-    }
-
-    function roundMoney(value) {
-      return Math.round(((Number(value) || 0) + Number.EPSILON) * 100) / 100;
-    }
-
-    function loadDevisFactureData() {
-      try {
-        const raw = localStorage.getItem(DEVIS_FACTURE_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : {};
-      } catch (error) {
-        console.error('Impossible de lire Devis & Facture.', error);
-        return {};
-      }
-    }
-
-    function moneyLineHtva(line) {
-      const qty = Number(line?.qty ?? line?.quantity ?? 0) || 0;
-      const unitPrice = Number(line?.unitPrice ?? line?.price ?? 0) || 0;
-      const discount = Number(line?.discount ?? 0) || 0;
-      return qty * unitPrice * (1 - discount / 100);
-    }
-
-    function moneyLineVat(line) {
-      const vatRate = Number(line?.vatRate ?? line?.vat ?? 21) || 0;
-      return moneyLineHtva(line) * vatRate / 100;
-    }
-
-    function moneyLineCostHtva(line) {
-      const qty = Number(line?.qty ?? line?.quantity ?? 0) || 0;
-      // Prix de revient interne. Si absent dans un ancien JSON, on reprend le prix facturé pour ne pas fausser l'ancien calcul.
-      const costPrice = Number(line?.costPrice ?? line?.purchasePrice ?? line?.cost ?? line?.unitCost ?? line?.unitPrice ?? line?.price ?? 0) || 0;
-      return qty * costPrice;
-    }
-
-    function documentTotals(doc) {
-      const lines = Array.isArray(doc?.lines) ? doc.lines : (Array.isArray(doc?.items) ? doc.items : []);
-      const suppliesLines = doc?.suppliesEnabled && Array.isArray(doc?.suppliesLines) ? doc.suppliesLines : [];
-
-      let workHtva = sum(lines.map(moneyLineHtva));
-      let workVat = sum(lines.map(moneyLineVat));
-      const suppliesSaleHtva = sum(suppliesLines.map(moneyLineHtva));
-      const suppliesVat = sum(suppliesLines.map(moneyLineVat));
-      const suppliesCostHtva = sum(suppliesLines.map(moneyLineCostHtva));
-
-      if (!workHtva) workHtva = Number(doc?.workHtva ?? doc?.htva ?? doc?.totalHtva ?? doc?.totalHTVA ?? doc?.totalHt ?? doc?.totalHT ?? doc?.amount ?? 0) || 0;
-      if (!workVat) workVat = Number(doc?.workVat ?? doc?.vat ?? doc?.totalVat ?? doc?.totalVAT ?? 0) || 0;
-
-      const clientHtva = roundMoney(workHtva + suppliesSaleHtva);
-      const clientVat = roundMoney(workVat + suppliesVat);
-      const clientTvac = Number(doc?.totalTvac ?? doc?.totalTVAC ?? doc?.totalTtc ?? doc?.totalTTC ?? 0) || (clientHtva + clientVat);
-
-      return {
-        htva: roundMoney(workHtva),
-        vat: roundMoney(workVat),
-        tvac: roundMoney(workHtva + workVat),
-        clientHtva,
-        clientVat,
-        clientTvac: roundMoney(clientTvac),
-        suppliesHtva: roundMoney(suppliesSaleHtva),
-        suppliesSaleHtva: roundMoney(suppliesSaleHtva),
-        suppliesCostHtva: roundMoney(suppliesCostHtva),
-        suppliesVat: roundMoney(suppliesVat),
-        suppliesTvac: roundMoney(suppliesSaleHtva + suppliesVat),
-        suppliesMarginHtva: roundMoney(suppliesSaleHtva - suppliesCostHtva)
-      };
-    }
-
-    function clientMatchesProject(project, doc) {
-      const projectClientId = String(project.clientId || '').trim();
-      const projectRef = String(project.clientRef || '').trim();
-      const projectName = normalizeLinkKey(project.clientName || '');
-      const docClientId = String(doc.clientId || '').trim();
-      const docRef = String(doc.clientNumber || doc.clientRef || '').trim();
-      const docName = normalizeLinkKey(doc.clientName || '');
-      return (!!projectClientId && projectClientId === docClientId)
-        || (!!projectRef && projectRef === docRef)
-        || (!!projectName && projectName === docName);
-    }
-
-    function buildCrmDocEntry(docKey, doc, source, fileMeta = {}) {
-      const number = String(doc?.documentNumber || '').trim();
-      if (!number) return null;
-      const labels = { quote: 'Devis', invoice: 'Facture', reminder: 'Rappel' };
-      const lists = { quote: 'linkedQuotes', invoice: 'linkedInvoices', reminder: 'linkedReminders' };
-      const totals = documentTotals(doc);
-      return {
-        key: docKey,
-        list: lists[docKey],
-        ref: number,
-        uniqueKey: `${docKey}:${number}:${fileMeta.id || source}`,
-        label: labels[docKey],
-        date: doc.date || '',
-        description: `${labels[docKey]} ${number}`,
-        amount: totals.clientHtva,
-        clientHtva: totals.clientHtva,
-        totalClientHtva: totals.clientHtva,
-        workHtva: totals.htva,
-        htva: totals.htva,
-        vat: totals.vat,
-        tvac: totals.clientTvac,
-        suppliesCost: totals.suppliesCostHtva,
-        suppliesCostHtva: totals.suppliesCostHtva,
-        costHtva: totals.suppliesCostHtva,
-        suppliesHtva: totals.suppliesHtva,
-        suppliesSaleHtva: totals.suppliesSaleHtva,
-        suppliesVat: totals.suppliesVat,
-        suppliesTvac: totals.suppliesTvac,
-        suppliesMarginHtva: totals.suppliesMarginHtva,
-        clientId: doc.clientId || '',
-        clientName: doc.clientName || '',
-        clientRef: doc.clientNumber || doc.clientRef || '',
-        siteName: doc.siteName || '',
-        source,
-        fileId: fileMeta.id || '',
-        fileName: fileMeta.name || '',
-        modifiedTime: fileMeta.modifiedTime || '',
-        rawDocument: doc || {}
-      };
-    }
-
-    function getLocalCrmDocumentsForProject(project) {
-      const devisData = loadDevisFactureData();
-      return ['quote', 'invoice', 'reminder']
-        .map(key => buildCrmDocEntry(key, devisData[key] || {}, 'localStorage'))
-        .filter(Boolean)
-        .filter(doc => clientMatchesProject(project, doc));
-    }
-
-    async function fetchDriveJson(fileId) {
-      const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-        headers: { Authorization: `Bearer ${googleAccessToken}` }
-      }, false);
-      if (!res || !res.ok) return null;
-      try { return await res.json(); } catch { return null; }
-    }
-
-    async function getDriveCrmDocumentsForProject(project) {
-      if (!googleAccessToken) return [];
-      const list = await driveFilesList({
-        spaces: 'appDataFolder',
-        q: "mimeType='application/json' and trashed=false",
-        orderBy: 'modifiedTime desc',
-        pageSize: 100,
-        fields: 'files(id, name, modifiedTime)'
-      }, false);
-      if (!list) return [];
-      const files = (list.result.files || []).filter(file => /^(devis|facture|rappel)-.+\.json$/i.test(file.name || ''));
-      const docs = [];
-      for (const file of files) {
-        const parsed = await fetchDriveJson(file.id);
-        if (!parsed) continue;
-        const lowerName = String(file.name || '').toLowerCase();
-        const keys = lowerName.startsWith('devis-') ? ['quote'] : lowerName.startsWith('facture-') ? ['invoice'] : lowerName.startsWith('rappel-') ? ['reminder'] : [];
-        for (const key of keys) {
-          const entry = buildCrmDocEntry(key, parsed[key] || {}, 'Google Drive', file);
-          if (entry && clientMatchesProject(project, entry)) docs.push(entry);
-        }
-      }
-      return docs;
-    }
-
-    function extractCrmDocsFromJson(parsed, fileName = '') {
-      const docs = [];
-      const map = [
-        ['quote', parsed?.quote],
-        ['invoice', parsed?.invoice],
-        ['reminder', parsed?.reminder]
-      ];
-      for (const [key, doc] of map) {
-        const entry = buildCrmDocEntry(key, doc || {}, 'fichier PC', { name: fileName });
-        if (entry) docs.push(entry);
-      }
-      return docs;
-    }
-
-    async function handleCrmJsonFiles(event) {
-      const project = getProject();
-      const files = Array.from(event.target.files || []);
-      event.target.value = '';
-      if (!project || !files.length) return;
-      const docs = [];
-      for (const file of files) {
-        try {
-          const parsed = JSON.parse(await file.text());
-          docs.push(...extractCrmDocsFromJson(parsed, file.name));
-        } catch (error) {
-          console.error(error);
-          notify('Un fichier JSON n’a pas pu être lu : ' + file.name);
-        }
-      }
-      crmDocumentLinkCache = dedupeCrmDocs([...(crmDocumentLinkCache || []), ...docs.filter(doc => clientMatchesProject(project, doc))]);
-      renderCrmDocumentLinkModal();
-    }
-
-    let crmDocumentLinkCache = [];
-
-    function dedupeCrmDocs(docs) {
-      const seen = new Set();
-      return docs.filter(doc => {
-        const key = `${doc.key}:${doc.ref}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      }).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || a.label.localeCompare(b.label));
-    }
-
-    function isMoneyLinked(project, type, ref) {
-      const list = type === 'quote' ? project.linkedQuotes : type === 'invoice' ? project.linkedInvoices : (project.linkedReminders || []);
-      return (list || []).some(item => String(item.ref || '') === String(ref));
-    }
-
-    async function toggleCrmDocumentLink(type, ref, checked) {
-      const project = getProject();
-      if (!project) return;
-      const doc = crmDocumentLinkCache.find(item => item.key === type && String(item.ref) === String(ref));
-      if (!doc) return;
-      const listName = doc.list;
-      if (!Array.isArray(project[listName])) project[listName] = [];
-      if (checked) {
-        const payload = {
-          id: `${type}-${doc.ref}`,
-          date: doc.date,
-          ref: doc.ref,
-          description: doc.description,
-          amount: doc.clientHtva || doc.totalClientHtva || doc.htva,
-          clientHtva: doc.clientHtva || doc.totalClientHtva || doc.htva,
-          totalClientHtva: doc.clientHtva || doc.totalClientHtva || doc.htva,
-          workHtva: doc.workHtva || doc.htva,
-          htva: doc.htva,
-          vat: doc.vat,
-          tvac: doc.tvac,
-          suppliesCost: doc.suppliesCost || doc.suppliesCostHtva || doc.suppliesHtva || 0,
-          suppliesCostHtva: doc.suppliesCostHtva || doc.suppliesCost || doc.suppliesHtva || 0,
-          costHtva: doc.costHtva || doc.suppliesCostHtva || doc.suppliesCost || doc.suppliesHtva || 0,
-          suppliesHtva: doc.suppliesHtva || doc.suppliesSaleHtva || 0,
-          suppliesSaleHtva: doc.suppliesSaleHtva || doc.suppliesHtva || 0,
-          suppliesVat: doc.suppliesVat || 0,
-          suppliesTvac: doc.suppliesTvac || 0,
-          source: doc.source,
-          fileId: doc.fileId,
-          fileName: doc.fileName,
-          docKey: type,
-          suiviClientId: project.id,
-          clientId: doc.clientId,
-          clientName: doc.clientName,
-          clientRef: doc.clientRef,
-          siteName: project.title
-        };
-        const stableKey = String(payload.documentUid || payload.id || payload.ref || '').trim();
-        const existing = project[listName].find(item =>
-          (stableKey && String(item.documentUid || item.id || '').trim() === stableKey)
-          || String(item.ref || '').trim() === String(doc.ref || '').trim()
-        );
-        if (existing) Object.assign(existing, payload, { documentUid: stableKey });
-        else project[listName].push(Object.assign(payload, { documentUid: stableKey }));
-        project.clientId = project.clientId || doc.clientId || '';
-        project.clientName = project.clientName || doc.clientName || '';
-        project.clientRef = project.clientRef || doc.clientRef || '';
-        addTimeline(project, `${doc.description} lié au client.`);
-      } else {
-        project[listName] = project[listName].filter(item => String(item.ref || '') !== String(doc.ref));
-        addTimeline(project, `${doc.description} retiré du client.`);
-      }
-      project.updatedAt = new Date().toISOString();
-      await saveData(false);
-      renderMain();
-    }
-
-    async function linkAllClientCrmDocuments() {
-      for (const doc of crmDocumentLinkCache) {
-        // Met aussi à jour les documents déjà liés si une facture a été modifiée dans Devis & Facture.
-        await toggleCrmDocumentLink(doc.key, doc.ref, true);
-      }
-      closeGenericModal();
-      notify('Documents du client liés / mis à jour.');
-    }
-
-    async function openCrmDocumentLinkModal() {
-      const project = hydrateProjectWithCrm(getProject());
-      if (!project) return;
-      openGenericModal(`
+async function openCrmDocumentLinkModal() {
+  const project = hydrateProjectWithCrm(getProject());
+  if (!project) return;
+  openGenericModal(`
         <div class="modal-head">
           <div>
             <h2>Charger les documents du client</h2>
@@ -2091,17 +2091,17 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
         </div>
         <div class="hint">Lecture du CRM / module Devis & Facture…</div>
       `);
-      const localDocs = getLocalCrmDocumentsForProject(project);
-      const driveDocs = await getDriveCrmDocumentsForProject(project);
-      crmDocumentLinkCache = dedupeCrmDocs([...localDocs, ...driveDocs]);
-      renderCrmDocumentLinkModal();
-    }
+  const localDocs = getLocalCrmDocumentsForProject(project);
+  const driveDocs = await getDriveCrmDocumentsForProject(project);
+  crmDocumentLinkCache = dedupeCrmDocs([...localDocs, ...driveDocs]);
+  renderCrmDocumentLinkModal();
+}
 
-    function renderCrmDocumentLinkModal() {
-      const project = getProject();
-      if (!project) return;
-      const docs = crmDocumentLinkCache || [];
-      openGenericModal(`
+function renderCrmDocumentLinkModal() {
+  const project = getProject();
+  if (!project) return;
+  const docs = crmDocumentLinkCache || [];
+  openGenericModal(`
         <div class="modal-head">
           <div>
             <h2>Documents du client</h2>
@@ -2137,70 +2137,70 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
         ` : `<div class="hint">Aucun document trouvé automatiquement pour ce client. Vérifiez le même nom client / n° client dans le client et dans le CRM, ou ajoutez les fichiers JSON depuis le PC avec le bouton ci-dessus.</div>`}
         <div class="modal-actions"><button class="primary" onclick="closeGenericModal()">Terminer</button></div>
       `);
-    }
+}
 
-    function getCrmDocumentFromCache(type, ref) {
-      return (crmDocumentLinkCache || []).find(item => item.key === type && String(item.ref || '') === String(ref || '')) || null;
-    }
+function getCrmDocumentFromCache(type, ref) {
+  return (crmDocumentLinkCache || []).find(item => item.key === type && String(item.ref || '') === String(ref || '')) || null;
+}
 
-    async function previewCrmDocumentFromCache(type, ref) {
-      const doc = getCrmDocumentFromCache(type, ref);
-      if (!doc) return notify('Document introuvable.');
-      const pseudoId = `${type}-${doc.ref}`;
-      const project = getProject();
-      if (project) {
-        const listName = doc.list;
-        if (!Array.isArray(project[listName])) project[listName] = [];
-        const existing = project[listName].find(item => String(item.ref || '') === String(doc.ref || ''));
-        if (!existing) project[listName].push({ ...doc, id: pseudoId, documentUid: pseudoId, amount: doc.clientHtva || doc.htva || 0 });
-      }
-      return previewCrmLinkedDocument(type, pseudoId);
-    }
+async function previewCrmDocumentFromCache(type, ref) {
+  const doc = getCrmDocumentFromCache(type, ref);
+  if (!doc) return notify('Document introuvable.');
+  const pseudoId = `${type}-${doc.ref}`;
+  const project = getProject();
+  if (project) {
+    const listName = doc.list;
+    if (!Array.isArray(project[listName])) project[listName] = [];
+    const existing = project[listName].find(item => String(item.ref || '') === String(doc.ref || ''));
+    if (!existing) project[listName].push({ ...doc, id: pseudoId, documentUid: pseudoId, amount: doc.clientHtva || doc.htva || 0 });
+  }
+  return previewCrmLinkedDocument(type, pseudoId);
+}
 
-    async function loadCrmDocumentFromCacheInDevis(type, ref) {
-      const doc = getCrmDocumentFromCache(type, ref);
-      if (!doc) return notify('Document introuvable.');
-      await toggleCrmDocumentLink(type, ref, true);
-      return loadCrmLinkedDocumentInDevis(type, `${type}-${ref}`);
-    }
+async function loadCrmDocumentFromCacheInDevis(type, ref) {
+  const doc = getCrmDocumentFromCache(type, ref);
+  if (!doc) return notify('Document introuvable.');
+  await toggleCrmDocumentLink(type, ref, true);
+  return loadCrmLinkedDocumentInDevis(type, `${type}-${ref}`);
+}
 
-    async function downloadCrmDocumentFromCache(type, ref) {
-      const doc = getCrmDocumentFromCache(type, ref);
-      if (!doc) return notify('Document introuvable.');
-      await toggleCrmDocumentLink(type, ref, true);
-      return downloadCrmLinkedDocument(type, `${type}-${ref}`);
-    }
+async function downloadCrmDocumentFromCache(type, ref) {
+  const doc = getCrmDocumentFromCache(type, ref);
+  if (!doc) return notify('Document introuvable.');
+  await toggleCrmDocumentLink(type, ref, true);
+  return downloadCrmLinkedDocument(type, `${type}-${ref}`);
+}
 
-    async function deleteCrmDocumentFromCache(type, ref) {
-      const doc = getCrmDocumentFromCache(type, ref);
-      if (!doc?.fileId) return notify('Ce document n’a pas de fichier Drive à supprimer.');
-      if (!confirm(`Supprimer définitivement ${doc.fileName || doc.label + ' ' + doc.ref} de Google Drive ?`)) return;
-      const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${doc.fileId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${googleAccessToken}` }
-      }, false);
-      if (!res || !res.ok) return notify('Suppression Drive impossible.');
-      crmDocumentLinkCache = (crmDocumentLinkCache || []).filter(item => item.fileId !== doc.fileId);
-      const project = getProject();
-      if (project) {
-        const listName = doc.list;
-        project[listName] = (project[listName] || []).filter(item => item.fileId !== doc.fileId && String(item.ref || '') !== String(doc.ref || ''));
-        await saveData(false);
-      }
-      renderCrmDocumentLinkModal();
-      renderMain();
-      notify('Document supprimé de Google Drive.');
-    }
+async function deleteCrmDocumentFromCache(type, ref) {
+  const doc = getCrmDocumentFromCache(type, ref);
+  if (!doc?.fileId) return notify('Ce document n’a pas de fichier Drive à supprimer.');
+  if (!confirm(`Supprimer définitivement ${doc.fileName || doc.label + ' ' + doc.ref} de Google Drive ?`)) return;
+  const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${doc.fileId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${googleAccessToken}` }
+  }, false);
+  if (!res || !res.ok) return notify('Suppression Drive impossible.');
+  crmDocumentLinkCache = (crmDocumentLinkCache || []).filter(item => item.fileId !== doc.fileId);
+  const project = getProject();
+  if (project) {
+    const listName = doc.list;
+    project[listName] = (project[listName] || []).filter(item => item.fileId !== doc.fileId && String(item.ref || '') !== String(doc.ref || ''));
+    await saveData(false);
+  }
+  renderCrmDocumentLinkModal();
+  renderMain();
+  notify('Document supprimé de Google Drive.');
+}
 
-    function openMoneyModal(type) {
-      const labels = {
-        quote: 'Ajouter un devis (hors calcul)',
-        invoice: 'Ajouter une facture',
-        reminder: 'Ajouter un rappel',
-        cost: 'Ajouter un coût manuel'
-      };
+function openMoneyModal(type) {
+  const labels = {
+    quote: 'Ajouter un devis (hors calcul)',
+    invoice: 'Ajouter une facture',
+    reminder: 'Ajouter un rappel',
+    cost: 'Ajouter un coût manuel'
+  };
 
-      openGenericModal(`
+  openGenericModal(`
         <div class="modal-head">
           <div>
             <h2>${labels[type]}</h2>
@@ -2235,52 +2235,52 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           <button class="primary" onclick="submitMoneyItem('${type}')">Ajouter</button>
         </div>
       `);
-    }
+}
 
-    async function submitMoneyItem(type) {
-      const project = getProject();
-      if (!project) return;
+async function submitMoneyItem(type) {
+  const project = getProject();
+  if (!project) return;
 
-      const item = {
-        id: uid(type),
-        date: document.getElementById('moneyDate').value,
-        ref: document.getElementById('moneyRef').value.trim(),
-        description: document.getElementById('moneyDescription').value.trim(),
-        amount: Number(document.getElementById('moneyAmount').value) || 0
-      };
+  const item = {
+    id: uid(type),
+    date: document.getElementById('moneyDate').value,
+    ref: document.getElementById('moneyRef').value.trim(),
+    description: document.getElementById('moneyDescription').value.trim(),
+    amount: Number(document.getElementById('moneyAmount').value) || 0
+  };
 
-      if (type === 'quote') project.linkedQuotes.push(item);
-      if (type === 'invoice') project.linkedInvoices.push(item);
-      if (type === 'reminder') {
-        if (!Array.isArray(project.linkedReminders)) project.linkedReminders = [];
-        project.linkedReminders.push(item);
-      }
-      if (type === 'cost') project.costs.push(item);
+  if (type === 'quote') project.linkedQuotes.push(item);
+  if (type === 'invoice') project.linkedInvoices.push(item);
+  if (type === 'reminder') {
+    if (!Array.isArray(project.linkedReminders)) project.linkedReminders = [];
+    project.linkedReminders.push(item);
+  }
+  if (type === 'cost') project.costs.push(item);
 
-      project.updatedAt = new Date().toISOString();
-      addTimeline(project, (type === 'quote' ? 'Devis' : type === 'invoice' ? 'Facture' : type === 'reminder' ? 'Rappel' : 'Coût') + ' ajouté : ' + (item.ref || formatMoney(item.amount)));
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, (type === 'quote' ? 'Devis' : type === 'invoice' ? 'Facture' : type === 'reminder' ? 'Rappel' : 'Coût') + ' ajouté : ' + (item.ref || formatMoney(item.amount)));
 
-      closeGenericModal();
-      await saveData();
-    }
+  closeGenericModal();
+  await saveData();
+}
 
-    async function deleteMoneyItem(type, id) {
-      const project = getProject();
-      if (!project) return;
-      if (!confirm('Supprimer cette ligne ?')) return;
+async function deleteMoneyItem(type, id) {
+  const project = getProject();
+  if (!project) return;
+  if (!confirm('Supprimer cette ligne ?')) return;
 
-      if (type === 'quote') project.linkedQuotes = project.linkedQuotes.filter(item => item.id !== id);
-      if (type === 'invoice') project.linkedInvoices = project.linkedInvoices.filter(item => item.id !== id);
-      if (type === 'reminder') project.linkedReminders = (project.linkedReminders || []).filter(item => item.id !== id);
-      if (type === 'cost') project.costs = project.costs.filter(item => item.id !== id);
+  if (type === 'quote') project.linkedQuotes = project.linkedQuotes.filter(item => item.id !== id);
+  if (type === 'invoice') project.linkedInvoices = project.linkedInvoices.filter(item => item.id !== id);
+  if (type === 'reminder') project.linkedReminders = (project.linkedReminders || []).filter(item => item.id !== id);
+  if (type === 'cost') project.costs = project.costs.filter(item => item.id !== id);
 
-      project.updatedAt = new Date().toISOString();
-      addTimeline(project, 'Ligne financière supprimée.');
-      await saveData();
-    }
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, 'Ligne financière supprimée.');
+  await saveData();
+}
 
-    function openTaskModal() {
-      openGenericModal(`
+function openTaskModal() {
+  openGenericModal(`
         <div class="modal-head">
           <div>
             <h2>Ajouter une tâche</h2>
@@ -2310,55 +2310,55 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           <button class="primary" onclick="submitTask()">Ajouter</button>
         </div>
       `);
-    }
+}
 
-    async function submitTask() {
-      const project = getProject();
-      if (!project) return;
+async function submitTask() {
+  const project = getProject();
+  if (!project) return;
 
-      const title = document.getElementById('taskTitle').value.trim();
-      if (!title) {
-        notify('La tâche est obligatoire.');
-        return;
-      }
+  const title = document.getElementById('taskTitle').value.trim();
+  if (!title) {
+    notify('La tâche est obligatoire.');
+    return;
+  }
 
-      project.tasks.unshift({
-        id: uid('task'),
-        title,
-        dueDate: document.getElementById('taskDueDate').value,
-        assignedTo: document.getElementById('taskAssignedTo').value.trim(),
-        done: false
-      });
+  project.tasks.unshift({
+    id: uid('task'),
+    title,
+    dueDate: document.getElementById('taskDueDate').value,
+    assignedTo: document.getElementById('taskAssignedTo').value.trim(),
+    done: false
+  });
 
-      project.updatedAt = new Date().toISOString();
-      addTimeline(project, 'Tâche ajoutée : ' + title);
-      closeGenericModal();
-      await saveData();
-    }
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, 'Tâche ajoutée : ' + title);
+  closeGenericModal();
+  await saveData();
+}
 
-    async function toggleTask(id, done) {
-      const project = getProject();
-      const task = project?.tasks.find(item => item.id === id);
-      if (!task) return;
+async function toggleTask(id, done) {
+  const project = getProject();
+  const task = project?.tasks.find(item => item.id === id);
+  if (!task) return;
 
-      task.done = done;
-      project.updatedAt = new Date().toISOString();
-      addTimeline(project, 'Tâche ' + (done ? 'terminée' : 'réouverte') + ' : ' + task.title);
-      await saveData(false);
-      renderMain();
-    }
+  task.done = done;
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, 'Tâche ' + (done ? 'terminée' : 'réouverte') + ' : ' + task.title);
+  await saveData(false);
+  renderMain();
+}
 
-    async function deleteTask(id) {
-      const project = getProject();
-      if (!project) return;
-      project.tasks = project.tasks.filter(item => item.id !== id);
-      project.updatedAt = new Date().toISOString();
-      addTimeline(project, 'Tâche supprimée.');
-      await saveData();
-    }
+async function deleteTask(id) {
+  const project = getProject();
+  if (!project) return;
+  project.tasks = project.tasks.filter(item => item.id !== id);
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, 'Tâche supprimée.');
+  await saveData();
+}
 
-    function openNoteModal() {
-      openGenericModal(`
+function openNoteModal() {
+  openGenericModal(`
         <div class="modal-head">
           <div>
             <h2>Ajouter une remarque</h2>
@@ -2377,517 +2377,517 @@ const STORAGE_KEY = 'bastcompta-chantiers-v1';
           <button class="primary" onclick="submitNote()">Ajouter</button>
         </div>
       `);
-    }
+}
 
-    async function submitNote() {
-      const project = getProject();
-      if (!project) return;
+async function submitNote() {
+  const project = getProject();
+  if (!project) return;
 
-      const text = document.getElementById('noteText').value.trim();
-      if (!text) {
-        notify('La remarque est vide.');
-        return;
-      }
+  const text = document.getElementById('noteText').value.trim();
+  if (!text) {
+    notify('La remarque est vide.');
+    return;
+  }
 
-      project.notes.unshift({
-        id: uid('note'),
-        text,
-        date: new Date().toISOString(),
-        dateLabel: nowLabel()
-      });
+  project.notes.unshift({
+    id: uid('note'),
+    text,
+    date: new Date().toISOString(),
+    dateLabel: nowLabel()
+  });
 
-      project.updatedAt = new Date().toISOString();
-      addTimeline(project, 'Remarque ajoutée.');
-      closeGenericModal();
-      await saveData();
-    }
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, 'Remarque ajoutée.');
+  closeGenericModal();
+  await saveData();
+}
 
-    async function deleteNote(id) {
-      const project = getProject();
-      if (!project) return;
-      project.notes = project.notes.filter(item => item.id !== id);
-      project.updatedAt = new Date().toISOString();
-      addTimeline(project, 'Remarque supprimée.');
-      await saveData();
-    }
+async function deleteNote(id) {
+  const project = getProject();
+  if (!project) return;
+  project.notes = project.notes.filter(item => item.id !== id);
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, 'Remarque supprimée.');
+  await saveData();
+}
 
-    async function handleDocumentUpload(event) {
-      const project = getProject();
-      const files = Array.from(event.target.files || []);
-      event.target.value = '';
-      if (!project || !files.length) return;
+async function handleDocumentUpload(event) {
+  const project = getProject();
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  if (!project || !files.length) return;
 
-      for (const file of files) {
-        let driveFileId = '';
-        let driveDownloadable = false;
+  for (const file of files) {
+    let driveFileId = '';
+    let driveDownloadable = false;
 
-        if (googleAccessToken) {
-          try {
-            const uploaded = await uploadFileToDrive(file, `client-${safeName(project.title)}-${Date.now()}-${file.name}`);
-            driveFileId = uploaded.id || '';
-            driveDownloadable = !!driveFileId;
-          } catch (error) {
-            console.error(error);
-            notify('Un fichier n’a pas pu être envoyé sur Drive : ' + file.name);
-          }
-        }
-
-        project.documents.unshift({
-          id: uid('doc'),
-          name: file.name,
-          type: file.type || 'application/octet-stream',
-          size: file.size,
-          addedAt: nowLabel(),
-          driveFileId,
-          driveDownloadable,
-          localOnly: !driveFileId
-        });
-
-        addTimeline(project, 'Document ajouté : ' + file.name);
-      }
-
-      project.updatedAt = new Date().toISOString();
-      await saveData();
-    }
-
-    function safeName(value) {
-      return String(value || 'client')
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-zA-Z0-9._-]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 80) || 'client';
-    }
-
-    async function uploadFileToDrive(file, name) {
-      const metadata = { name, parents: ['appDataFolder'] };
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      form.append('file', file);
-
-      const response = await googleDriveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size,mimeType', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${googleAccessToken}` },
-        body: form
-      });
-
-      if (!response || !response.ok) throw new Error(response ? await response.text() : 'Drive non disponible');
-      return response.json();
-    }
-
-    async function downloadDocument(id) {
-      const project = getProject();
-      const doc = project?.documents.find(item => item.id === id);
-      if (!doc) return;
-
-      if (!doc.driveFileId) {
-        notify('Ce document est référencé localement, mais son contenu n’est pas téléchargeable depuis cette session.');
-        return;
-      }
-
-      const response = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${doc.driveFileId}?alt=media`, {
-        headers: { Authorization: `Bearer ${googleAccessToken}` }
-      });
-
-      if (!response || !response.ok) {
-        notify('Téléchargement impossible depuis Drive.');
-        return;
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = doc.name || 'document';
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    async function deleteDocument(id) {
-      const project = getProject();
-      const doc = project?.documents.find(item => item.id === id);
-      if (!project || !doc) return;
-      if (!confirm('Supprimer ce document de la fiche client ?')) return;
-
-      project.documents = project.documents.filter(item => item.id !== id);
-      project.updatedAt = new Date().toISOString();
-      addTimeline(project, 'Document retiré : ' + doc.name);
-
-      await saveData();
-    }
-
-    function openGenericModal(html) {
-      document.getElementById('genericModal').innerHTML = html;
-      document.getElementById('genericModalBackdrop').classList.add('open');
-    }
-
-    function closeGenericModal() {
-      document.getElementById('genericModalBackdrop').classList.remove('open');
-      document.getElementById('genericModal').innerHTML = '';
-    }
-
-    function notify(message) {
-      const toast = document.getElementById('toast');
-      toast.textContent = message;
-      toast.classList.add('show');
-      clearTimeout(notify._timer);
-      notify._timer = setTimeout(() => toast.classList.remove('show'), 3500);
-    }
-
-    function toggleFileMenu(event) {
-      event.stopPropagation();
-      document.getElementById('fileDropdown').classList.toggle('open');
-    }
-
-    function closeFileMenu() {
-      document.getElementById('fileDropdown').classList.remove('open');
-    }
-
-    function exportDataLocal() {
-      const content = JSON.stringify(data, null, 2);
-      const blob = new Blob([content], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = getLocalFileName();
-      a.click();
-      URL.revokeObjectURL(url);
-      notify('Fichier suivi client téléchargé.');
-    }
-
-    function getLocalFileName() {
-      const date = new Date().toISOString().slice(0, 10);
-      return `bastcompta-suivi-client-${date}.json`;
-    }
-
-    async function importDataLocal(event) {
-      const file = event.target.files?.[0];
-      event.target.value = '';
-      if (!file) return;
-      if (!confirm('Importer ce fichier remplacera les suivis clients actuels. Continuer ?')) return;
-
+    if (googleAccessToken) {
       try {
-        const parsed = JSON.parse(await file.text());
-        data = normalizeData(parsed);
-        selectedProjectId = '';
-        saveLocalOnly();
-        await saveData();
-        notify('Suivis clients importés.');
+        const uploaded = await uploadFileToDrive(file, `client-${safeName(project.title)}-${Date.now()}-${file.name}`);
+        driveFileId = uploaded.id || '';
+        driveDownloadable = !!driveFileId;
       } catch (error) {
         console.error(error);
-        notify('Import impossible : fichier invalide.');
+        notify('Un fichier n’a pas pu être envoyé sur Drive : ' + file.name);
       }
     }
 
-    async function exportJsonToDrive() {
-      if (!googleAccessToken) {
-        notify('Google Drive non connecté via le portail.');
-        return;
-      }
+    project.documents.unshift({
+      id: uid('doc'),
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size,
+      addedAt: nowLabel(),
+      driveFileId,
+      driveDownloadable,
+      localOnly: !driveFileId
+    });
 
-      const ok = await saveSyncToDrive(true);
-      notify(ok ? 'Suivis clients sauvegardés sur Google Drive.' : 'Sauvegarde Drive impossible.');
+    addTimeline(project, 'Document ajouté : ' + file.name);
+  }
+
+  project.updatedAt = new Date().toISOString();
+  await saveData();
+}
+
+function safeName(value) {
+  return String(value || 'client')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'client';
+}
+
+async function uploadFileToDrive(file, name) {
+  const metadata = { name, parents: ['appDataFolder'] };
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', file);
+
+  const response = await googleDriveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size,mimeType', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${googleAccessToken}` },
+    body: form
+  });
+
+  if (!response || !response.ok) throw new Error(response ? await response.text() : 'Drive non disponible');
+  return response.json();
+}
+
+async function downloadDocument(id) {
+  const project = getProject();
+  const doc = project?.documents.find(item => item.id === id);
+  if (!doc) return;
+
+  if (!doc.driveFileId) {
+    notify('Ce document est référencé localement, mais son contenu n’est pas téléchargeable depuis cette session.');
+    return;
+  }
+
+  const response = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${doc.driveFileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${googleAccessToken}` }
+  });
+
+  if (!response || !response.ok) {
+    notify('Téléchargement impossible depuis Drive.');
+    return;
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = doc.name || 'document';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function deleteDocument(id) {
+  const project = getProject();
+  const doc = project?.documents.find(item => item.id === id);
+  if (!project || !doc) return;
+  if (!confirm('Supprimer ce document de la fiche client ?')) return;
+
+  project.documents = project.documents.filter(item => item.id !== id);
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, 'Document retiré : ' + doc.name);
+
+  await saveData();
+}
+
+function openGenericModal(html) {
+  document.getElementById('genericModal').innerHTML = html;
+  document.getElementById('genericModalBackdrop').classList.add('open');
+}
+
+function closeGenericModal() {
+  document.getElementById('genericModalBackdrop').classList.remove('open');
+  document.getElementById('genericModal').innerHTML = '';
+}
+
+function notify(message) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(notify._timer);
+  notify._timer = setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+function toggleFileMenu(event) {
+  event.stopPropagation();
+  document.getElementById('fileDropdown').classList.toggle('open');
+}
+
+function closeFileMenu() {
+  document.getElementById('fileDropdown').classList.remove('open');
+}
+
+function exportDataLocal() {
+  const content = JSON.stringify(data, null, 2);
+  const blob = new Blob([content], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = getLocalFileName();
+  a.click();
+  URL.revokeObjectURL(url);
+  notify('Fichier suivi client téléchargé.');
+}
+
+function getLocalFileName() {
+  const date = new Date().toISOString().slice(0, 10);
+  return `bastcompta-suivi-client-${date}.json`;
+}
+
+async function importDataLocal(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (!confirm('Importer ce fichier remplacera les suivis clients actuels. Continuer ?')) return;
+
+  try {
+    const parsed = JSON.parse(await file.text());
+    data = normalizeData(parsed);
+    selectedProjectId = '';
+    saveLocalOnly();
+    await saveData();
+    notify('Suivis clients importés.');
+  } catch (error) {
+    console.error(error);
+    notify('Import impossible : fichier invalide.');
+  }
+}
+
+async function exportJsonToDrive() {
+  if (!googleAccessToken) {
+    notify('Google Drive non connecté via le portail.');
+    return;
+  }
+
+  const ok = await saveSyncToDrive(true);
+  notify(ok ? 'Suivis clients sauvegardés sur Google Drive.' : 'Sauvegarde Drive impossible.');
+}
+
+async function loadFromDrive() {
+  if (!googleAccessToken) {
+    notify('Google Drive non connecté via le portail.');
+    return;
+  }
+
+  if (!confirm('Charger les suivis clients depuis Google Drive remplacera les données locales. Continuer ?')) return;
+
+  const ok = await loadSyncDataFromDriveIfAvailable();
+  notify(ok ? 'Suivis clients chargés depuis Google Drive.' : 'Aucun fichier suivi client trouvé sur Drive.');
+  render();
+}
+
+async function saveSyncToDrive(showErrorAlert = false) {
+  if (!googleAccessToken) return false;
+
+  try {
+    const content = JSON.stringify(data, null, 2);
+
+    const existing = await driveFilesList({
+      spaces: 'appDataFolder',
+      q: `name='${DRIVE_SYNC_FILE_NAME}' and trashed=false`,
+      fields: 'files(id, name)'
+    });
+
+    if (!existing) return false;
+
+    const files = existing.result.files || [];
+    const isUpdate = files.length > 0;
+    const metadata = isUpdate
+      ? { name: DRIVE_SYNC_FILE_NAME }
+      : { name: DRIVE_SYNC_FILE_NAME, parents: ['appDataFolder'] };
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', new Blob([content], { type: 'application/json' }));
+
+    let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name';
+    let method = 'POST';
+
+    if (isUpdate) {
+      url = `https://www.googleapis.com/upload/drive/v3/files/${files[0].id}?uploadType=multipart&fields=id,name`;
+      method = 'PATCH';
     }
 
-    async function loadFromDrive() {
-      if (!googleAccessToken) {
-        notify('Google Drive non connecté via le portail.');
-        return;
-      }
+    const res = await googleDriveFetch(url, {
+      method,
+      headers: { Authorization: `Bearer ${googleAccessToken}` },
+      body: form
+    });
 
-      if (!confirm('Charger les suivis clients depuis Google Drive remplacera les données locales. Continuer ?')) return;
+    return !!res && res.ok;
+  } catch (error) {
+    console.error(error);
+    if (showErrorAlert) alert('La sauvegarde Google Drive a échoué.');
+    return false;
+  }
+}
 
-      const ok = await loadSyncDataFromDriveIfAvailable();
-      notify(ok ? 'Suivis clients chargés depuis Google Drive.' : 'Aucun fichier suivi client trouvé sur Drive.');
-      render();
+async function loadSyncDataFromDriveIfAvailable() {
+  if (!googleAccessToken) return false;
+
+  try {
+    const list = await driveFilesList({
+      spaces: 'appDataFolder',
+      q: `name='${DRIVE_SYNC_FILE_NAME}' and trashed=false`,
+      orderBy: 'modifiedTime desc',
+      pageSize: 1,
+      fields: 'files(id, name, modifiedTime)'
+    });
+
+    if (!list) return false;
+    const file = (list.result.files || [])[0];
+    if (!file) return false;
+
+    const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+      headers: { Authorization: `Bearer ${googleAccessToken}` }
+    });
+
+    if (!res || !res.ok) return false;
+
+    const parsed = await res.json();
+    data = normalizeData(parsed);
+    selectedProjectId = '';
+    saveLocalOnly();
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
+}
+
+async function driveFilesList(params, showAlert401 = true) {
+  try {
+    if (window.gapi?.client?.drive?.files?.list) {
+      return await gapi.client.drive.files.list(params);
     }
 
-    async function saveSyncToDrive(showErrorAlert = false) {
-      if (!googleAccessToken) return false;
+    if (!googleAccessToken) return null;
+    const query = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) query.set(key, value);
+    });
+    const response = await fetch('https://www.googleapis.com/drive/v3/files?' + query.toString(), {
+      headers: { Authorization: `Bearer ${googleAccessToken}` }
+    });
+    if (await handleGoogleDriveAuthError(response.status, showAlert401)) return null;
+    if (!response.ok) return null;
+    return { result: await response.json() };
+  } catch (error) {
+    if (await handleGoogleDriveException(error, showAlert401)) return null;
+    console.error(error);
+    return null;
+  }
+}
 
-      try {
-        const content = JSON.stringify(data, null, 2);
+async function googleDriveFetch(url, options = {}, showAlert401 = true) {
+  const response = await fetch(url, options);
+  if (await handleGoogleDriveAuthError(response.status, showAlert401)) return null;
+  return response;
+}
 
-        const existing = await driveFilesList({
-          spaces: 'appDataFolder',
-          q: `name='${DRIVE_SYNC_FILE_NAME}' and trashed=false`,
-          fields: 'files(id, name)'
-        });
+function getSafeMessageOrigin() {
+  try {
+    return window.location.origin && window.location.origin !== 'null' ? window.location.origin : '*';
+  } catch {
+    return '*';
+  }
+}
 
-        if (!existing) return false;
+function postToParentSafely(message) {
+  try {
+    window.parent.postMessage(message, getSafeMessageOrigin());
+  } catch (error) {
+    console.warn('Message portail ignoré.', error);
+  }
+}
 
-        const files = existing.result.files || [];
-        const isUpdate = files.length > 0;
-        const metadata = isUpdate
-          ? { name: DRIVE_SYNC_FILE_NAME }
-          : { name: DRIVE_SYNC_FILE_NAME, parents: ['appDataFolder'] };
+function resetGoogleDriveSession() {
+  googleAccessToken = null;
+  if (window.gapi?.client) {
+    gapi.client.setToken(null);
+  }
+}
 
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', new Blob([content], { type: 'application/json' }));
-
-        let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name';
-        let method = 'POST';
-
-        if (isUpdate) {
-          url = `https://www.googleapis.com/upload/drive/v3/files/${files[0].id}?uploadType=multipart&fields=id,name`;
-          method = 'PATCH';
-        }
-
-        const res = await googleDriveFetch(url, {
-          method,
-          headers: { Authorization: `Bearer ${googleAccessToken}` },
-          body: form
-        });
-
-        return !!res && res.ok;
-      } catch (error) {
-        console.error(error);
-        if (showErrorAlert) alert('La sauvegarde Google Drive a échoué.');
-        return false;
-      }
+function safePostToParent(message) {
+  try {
+    const targetOrigin = window.location.origin && window.location.origin !== 'null' ? window.location.origin : '*';
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(message, targetOrigin);
     }
+  } catch (error) {
+    console.warn('Message portail ignoré.', error);
+  }
+}
 
-    async function loadSyncDataFromDriveIfAvailable() {
-      if (!googleAccessToken) return false;
+function notifyParentToRefreshGoogleToken() {
+  safePostToParent({ type: 'BASTCOMPTA_REFRESH_TOKEN' });
+}
 
-      try {
-        const list = await driveFilesList({
-          spaces: 'appDataFolder',
-          q: `name='${DRIVE_SYNC_FILE_NAME}' and trashed=false`,
-          orderBy: 'modifiedTime desc',
-          pageSize: 1,
-          fields: 'files(id, name, modifiedTime)'
-        });
+async function handleGoogleDriveAuthError(status, showAlert = true) {
+  if (status === 401) {
+    resetGoogleDriveSession();
+    notifyParentToRefreshGoogleToken();
+    if (showAlert) notify('Session Google Drive expirée. Reconnexion demandée au portail.');
+    return true;
+  }
+  return false;
+}
 
-        if (!list) return false;
-        const file = (list.result.files || [])[0];
-        if (!file) return false;
+function extractGoogleDriveErrorStatus(error) {
+  return error?.status || error?.result?.error?.code || error?.code || null;
+}
 
-        const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
-          headers: { Authorization: `Bearer ${googleAccessToken}` }
-        });
+async function handleGoogleDriveException(error, showAlert = true) {
+  return handleGoogleDriveAuthError(extractGoogleDriveErrorStatus(error), showAlert);
+}
 
-        if (!res || !res.ok) return false;
+function printCurrentProject() {
+  if (!getProject()) {
+    notify('Aucun client à imprimer.');
+    return;
+  }
+  window.print();
+}
 
-        const parsed = await res.json();
-        data = normalizeData(parsed);
-        selectedProjectId = '';
-        saveLocalOnly();
-        return true;
-      } catch (error) {
-        console.error(error);
-        return false;
-      }
-    }
+function initGoogleMessages() {
+  window.addEventListener('message', async (event) => {
+    if (window.location.origin && window.location.origin !== 'null' && event.origin !== window.location.origin) return;
+    const message = event.data || {};
 
-    async function driveFilesList(params, showAlert401 = true) {
-      try {
-        if (window.gapi?.client?.drive?.files?.list) {
-          return await gapi.client.drive.files.list(params);
-        }
+    if (message.type === 'BASTCOMPTA_GOOGLE_TOKEN') {
+      googleAccessToken = message.accessToken || null;
 
-        if (!googleAccessToken) return null;
-        const query = new URLSearchParams();
-        Object.entries(params || {}).forEach(([key, value]) => {
-          if (value !== undefined && value !== null) query.set(key, value);
-        });
-        const response = await fetch('https://www.googleapis.com/drive/v3/files?' + query.toString(), {
-          headers: { Authorization: `Bearer ${googleAccessToken}` }
-        });
-        if (await handleGoogleDriveAuthError(response.status, showAlert401)) return null;
-        if (!response.ok) return null;
-        return { result: await response.json() };
-      } catch (error) {
-        if (await handleGoogleDriveException(error, showAlert401)) return null;
-        console.error(error);
-        return null;
-      }
-    }
-
-    async function googleDriveFetch(url, options = {}, showAlert401 = true) {
-      const response = await fetch(url, options);
-      if (await handleGoogleDriveAuthError(response.status, showAlert401)) return null;
-      return response;
-    }
-
-    function getSafeMessageOrigin() {
-      try {
-        return window.location.origin && window.location.origin !== 'null' ? window.location.origin : '*';
-      } catch {
-        return '*';
-      }
-    }
-
-    function postToParentSafely(message) {
-      try {
-        window.parent.postMessage(message, getSafeMessageOrigin());
-      } catch (error) {
-        console.warn('Message portail ignoré.', error);
-      }
-    }
-
-    function resetGoogleDriveSession() {
-      googleAccessToken = null;
-      if (window.gapi?.client) {
-        gapi.client.setToken(null);
-      }
-    }
-
-    function safePostToParent(message) {
-      try {
-        const targetOrigin = window.location.origin && window.location.origin !== 'null' ? window.location.origin : '*';
-        if (window.parent && window.parent !== window) {
-          window.parent.postMessage(message, targetOrigin);
-        }
-      } catch (error) {
-        console.warn('Message portail ignoré.', error);
-      }
-    }
-
-    function notifyParentToRefreshGoogleToken() {
-      safePostToParent({ type: 'BASTCOMPTA_REFRESH_TOKEN' });
-    }
-
-    async function handleGoogleDriveAuthError(status, showAlert = true) {
-      if (status === 401) {
-        resetGoogleDriveSession();
-        notifyParentToRefreshGoogleToken();
-        if (showAlert) notify('Session Google Drive expirée. Reconnexion demandée au portail.');
-        return true;
-      }
-      return false;
-    }
-
-    function extractGoogleDriveErrorStatus(error) {
-      return error?.status || error?.result?.error?.code || error?.code || null;
-    }
-
-    async function handleGoogleDriveException(error, showAlert = true) {
-      return handleGoogleDriveAuthError(extractGoogleDriveErrorStatus(error), showAlert);
-    }
-
-    function printCurrentProject() {
-      if (!getProject()) {
-        notify('Aucun client à imprimer.');
-        return;
-      }
-      window.print();
-    }
-
-    function initGoogleMessages() {
-      window.addEventListener('message', async (event) => {
-        if (window.location.origin && window.location.origin !== 'null' && event.origin !== window.location.origin) return;
-        const message = event.data || {};
-
-        if (message.type === 'BASTCOMPTA_GOOGLE_TOKEN') {
-          googleAccessToken = message.accessToken || null;
-
-          if (googleAccessToken && window.gapi?.client) {
-            try {
-              gapi.client.setToken({ access_token: googleAccessToken });
-              await loadSyncDataFromDriveIfAvailable();
-              await refreshCrmClientDropdown(false);
-              selectedProjectId = '';
-              render();
-            } catch (error) {
-              console.error(error);
-            }
-          }
-        }
-
-        if (message.type === 'BASTCOMPTA_GOOGLE_LOGOUT') {
-          resetGoogleDriveSession();
-          notify('Google Drive déconnecté.');
-        }
-
-        if (message.type === 'BASTCOMPTA_CHANTIERS_UPDATED') {
-          data = loadData();
-          render();
-        }
-
-        if (message.type === 'BASTCOMPTA_OPEN_CHANTIER') {
-          data = loadData();
-          const targetId = String(message.projectId || '');
-          if (targetId && data.projects.some(project => project.id === targetId)) {
-            selectedProjectId = targetId;
-            activeTab = 'summary';
-          }
-          render();
-        }
-      });
-
-      window.addEventListener('storage', (event) => {
-        if (event.key === STORAGE_KEY) {
-          data = loadData();
-          render();
-        }
-      });
-
-      safePostToParent({ type: 'BASTCOMPTA_DRIVE_STATUS_REQUEST' });
-    }
-
-    function initGapi() {
-      if (!window.gapi) return;
-      gapi.load('client', async () => {
+      if (googleAccessToken && window.gapi?.client) {
         try {
-          await gapi.client.init({
-            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
-          });
-
-          if (googleAccessToken) {
-            gapi.client.setToken({ access_token: googleAccessToken });
-            await loadSyncDataFromDriveIfAvailable();
-            await refreshCrmClientDropdown(false);
-            render();
-          }
+          gapi.client.setToken({ access_token: googleAccessToken });
+          await loadSyncDataFromDriveIfAvailable();
+          await refreshCrmClientDropdown(false);
+          selectedProjectId = '';
+          render();
         } catch (error) {
-          console.error('Initialisation Google Drive impossible.', error);
+          console.error(error);
         }
-      });
-    }
-
-    document.addEventListener('click', event => {
-      if (!event.target.closest('#fileDropdown')) closeFileMenu();
-    });
-
-    async function saveFromPortalGlobal(options = {}) {
-      const interceptedAlerts = [];
-      const originalAlert = window.alert;
-      if (options?.silent) {
-        window.alert = message => {
-          interceptedAlerts.push(String(message || ''));
-          console.info('Alerte Suivi client interceptée pendant la sauvegarde globale:', message);
-        };
-      }
-
-      try {
-        const ok = await saveData(false);
-        return {
-          ok: !!ok,
-          module: 'suivi-client',
-          local: !!ok,
-          drive: !!googleAccessToken && !!ok,
-          alertsIntercepted: interceptedAlerts.length
-        };
-      } finally {
-        if (options?.silent) window.alert = originalAlert;
       }
     }
 
-    window.BastComptaModule = {
-      name: 'Suivi client',
-      save: saveFromPortalGlobal,
-      saveData,
-      getStatus: () => ({ ready: true, module: 'suivi-client' })
-    };
+    if (message.type === 'BASTCOMPTA_GOOGLE_LOGOUT') {
+      resetGoogleDriveSession();
+      notify('Google Drive déconnecté.');
+    }
 
-
-    window.addEventListener('load', () => {
-      initGoogleMessages();
-      initGapi();
+    if (message.type === 'BASTCOMPTA_CHANTIERS_UPDATED') {
+      data = loadData();
       render();
-      setTimeout(() => {
-        renderCrmClientDropdown();
-        safePostToParent({ type: 'BASTCOMPTA_DRIVE_STATUS_REQUEST' });
-      }, 500);
-    });
+    }
+
+    if (message.type === 'BASTCOMPTA_OPEN_CHANTIER') {
+      data = loadData();
+      const targetId = String(message.projectId || '');
+      if (targetId && data.projects.some(project => project.id === targetId)) {
+        selectedProjectId = targetId;
+        activeTab = 'summary';
+      }
+      render();
+    }
+  });
+
+  window.addEventListener('storage', (event) => {
+    if (event.key === STORAGE_KEY) {
+      data = loadData();
+      render();
+    }
+  });
+
+  safePostToParent({ type: 'BASTCOMPTA_DRIVE_STATUS_REQUEST' });
+}
+
+function initGapi() {
+  if (!window.gapi) return;
+  gapi.load('client', async () => {
+    try {
+      await gapi.client.init({
+        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+      });
+
+      if (googleAccessToken) {
+        gapi.client.setToken({ access_token: googleAccessToken });
+        await loadSyncDataFromDriveIfAvailable();
+        await refreshCrmClientDropdown(false);
+        render();
+      }
+    } catch (error) {
+      console.error('Initialisation Google Drive impossible.', error);
+    }
+  });
+}
+
+document.addEventListener('click', event => {
+  if (!event.target.closest('#fileDropdown')) closeFileMenu();
+});
+
+async function saveFromPortalGlobal(options = {}) {
+  const interceptedAlerts = [];
+  const originalAlert = window.alert;
+  if (options?.silent) {
+    window.alert = message => {
+      interceptedAlerts.push(String(message || ''));
+      console.info('Alerte Suivi client interceptée pendant la sauvegarde globale:', message);
+    };
+  }
+
+  try {
+    const ok = await saveData(false);
+    return {
+      ok: !!ok,
+      module: 'suivi-client',
+      local: !!ok,
+      drive: !!googleAccessToken && !!ok,
+      alertsIntercepted: interceptedAlerts.length
+    };
+  } finally {
+    if (options?.silent) window.alert = originalAlert;
+  }
+}
+
+window.BastComptaModule = {
+  name: 'Suivi client',
+  save: saveFromPortalGlobal,
+  saveData,
+  getStatus: () => ({ ready: true, module: 'suivi-client' })
+};
+
+
+window.addEventListener('load', () => {
+  initGoogleMessages();
+  initGapi();
+  render();
+  setTimeout(() => {
+    renderCrmClientDropdown();
+    safePostToParent({ type: 'BASTCOMPTA_DRIVE_STATUS_REQUEST' });
+  }, 500);
+});

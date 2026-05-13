@@ -59,14 +59,18 @@ body {
     font-size: 14px;
 }
 
-.actions, .inline-actions, .tabs, .filters {
+.actions,
+.inline-actions,
+.tabs,
+.filters {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
     align-items: center;
 }
 
-button, .file-label {
+button,
+.file-label {
     border: 1px solid var(--line);
     background: var(--panel);
     color: var(--text);
@@ -79,7 +83,8 @@ button, .file-label {
     font-size: 14px;
 }
 
-button:hover, .file-label:hover {
+button:hover,
+.file-label:hover {
     transform: translateY(-1px);
 }
 
@@ -140,7 +145,8 @@ button:disabled {
     gap: 4px;
 }
 
-.dropdown-menu button, .dropdown-menu .file-label {
+.dropdown-menu button,
+.dropdown-menu .file-label {
     width: 100%;
     text-align: left;
     box-shadow: none;
@@ -148,7 +154,8 @@ button:disabled {
     background: transparent;
 }
 
-.dropdown-menu button:hover, .dropdown-menu .file-label:hover {
+.dropdown-menu button:hover,
+.dropdown-menu .file-label:hover {
     background: var(--panel-soft);
 }
 
@@ -192,7 +199,8 @@ button:disabled {
     align-items: start;
 }
 
-.side-panel, .main-panel {
+.side-panel,
+.main-panel {
     background: rgba(255, 255, 255, .94);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -216,7 +224,9 @@ button:disabled {
     flex-wrap: wrap;
 }
 
-.panel-head h2, .panel-head h3, .section-title {
+.panel-head h2,
+.panel-head h3,
+.section-title {
     margin: 0;
 }
 
@@ -224,7 +234,10 @@ button:disabled {
     font-size: 19px;
 }
 
-.search-input, input, select, textarea {
+.search-input,
+input,
+select,
+textarea {
     width: 100%;
     border: 1px solid var(--line);
     border-radius: 12px;
@@ -241,7 +254,9 @@ textarea {
     line-height: 1.5;
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
     border-color: #9ec0ff;
     box-shadow: 0 0 0 4px rgba(29, 78, 216, .08);
 }
@@ -476,7 +491,8 @@ table {
     min-width: 760px;
 }
 
-th, td {
+th,
+td {
     border-bottom: 1px solid var(--line);
     padding: 10px 9px;
     text-align: left;
@@ -495,7 +511,8 @@ tr:last-child td {
     border-bottom: none;
 }
 
-td.num, th.num {
+td.num,
+th.num {
     text-align: right;
     white-space: nowrap;
 }
@@ -509,19 +526,27 @@ td.num, th.num {
     margin-bottom: 10px;
 }
 
-.note-list, .timeline-list, .doc-list, .task-list {
+.note-list,
+.timeline-list,
+.doc-list,
+.task-list {
     display: grid;
     gap: 10px;
 }
 
-.note-item, .timeline-item, .doc-item, .task-item {
+.note-item,
+.timeline-item,
+.doc-item,
+.task-item {
     border: 1px solid var(--line);
     border-radius: 14px;
     background: #fff;
     padding: 12px;
 }
 
-.note-meta, .timeline-meta, .doc-meta {
+.note-meta,
+.timeline-meta,
+.doc-meta {
     color: var(--muted);
     font-size: 12px;
     margin-bottom: 6px;
@@ -665,9 +690,11 @@ td.num, th.num {
     .summary-grid {
         grid-template-columns: repeat(2, minmax(170px, 1fr));
     }
+
     .workspace {
         grid-template-columns: 1fr;
     }
+
     .project-list {
         max-height: none;
     }
@@ -677,12 +704,17 @@ td.num, th.num {
     .app {
         padding: 14px;
     }
-    .summary-grid, .grid-2, .grid-3 {
+
+    .summary-grid,
+    .grid-2,
+    .grid-3 {
         grid-template-columns: 1fr;
     }
+
     .hero h2 {
         font-size: 23px;
     }
+
     .tabs {
         overflow: auto;
         flex-wrap: nowrap;
@@ -693,24 +725,40 @@ td.num, th.num {
     body {
         background: #fff;
     }
-    .topbar, .summary-grid, .side-panel, .tabs, .actions, .inline-actions, .no-print, button {
+
+    .topbar,
+    .summary-grid,
+    .side-panel,
+    .tabs,
+    .actions,
+    .inline-actions,
+    .no-print,
+    button {
         display: none !important;
     }
+
     .app {
         max-width: none;
         padding: 0;
     }
+
     .workspace {
         display: block;
     }
-    .main-panel, .hero, .form-card, .table-wrap {
+
+    .main-panel,
+    .hero,
+    .form-card,
+    .table-wrap {
         border: none;
         box-shadow: none;
         border-radius: 0;
     }
+
     .main-body {
         padding: 0;
     }
+
     .tab-page {
         display: grid !important;
     }
@@ -788,4 +836,68 @@ td.num, th.num {
     background: var(--panel);
     color: var(--text);
     border-color: var(--line);
+}
+
+/* Boutons documents sur une seule ligne */
+.document-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+}
+
+/* Petite croix rouge au lieu du bouton Supprimer */
+.doc-delete-btn {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+    background: #fff;
+    color: #b91c1c;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: none;
+}
+
+.doc-delete-btn:hover {
+    background: #fff5f5;
+    transform: none;
+}
+
+/* Suppression du bleu plein sur tous les boutons primary */
+button.primary,
+button.small.primary {
+    background: var(--panel);
+    color: var(--text);
+    border-color: var(--line);
+}
+
+button.primary:hover,
+button.small.primary:hover {
+    background: var(--panel-soft);
+}
+
+/* Onglet actif plus sobre */
+.tab.active {
+    color: var(--text);
+    border-bottom-color: var(--line-strong);
+}
+
+/* Suppression des reflets bleus trop visibles */
+body {
+    background: linear-gradient(180deg, #f8fafc 0%, var(--bg) 100%);
+}
+
+.hero {
+    background: linear-gradient(145deg, #ffffff, #f8fafc);
+}
+
+.project-item:hover,
+.project-item.active {
+    border-color: var(--line);
+    background: #fff;
+    box-shadow: var(--shadow-soft);
 }
