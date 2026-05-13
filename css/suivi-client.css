@@ -776,10 +776,17 @@ th.num {
 
 .download-menu summary {
     list-style: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+    height: 38px;
+    min-width: 128px;
+    padding: 0 14px;
     border: 1px solid var(--line);
     background: var(--panel);
     color: var(--text);
-    padding: 8px 10px;
     border-radius: 10px;
     cursor: pointer;
     font-weight: 700;
@@ -793,9 +800,11 @@ th.num {
 }
 
 .download-menu summary::after {
-    content: " ▾";
+    content: "▾";
+    display: inline-block;
     color: var(--muted);
     font-weight: 700;
+    line-height: 1;
 }
 
 .download-menu[open] summary {
@@ -900,135 +909,4 @@ body {
     border-color: var(--line);
     background: #fff;
     box-shadow: var(--shadow-soft);
-}
-
-/* ================================
-   Correctif responsive mobile Suivi client
-   ================================ */
-@media (max-width: 768px) {
-    body {
-        overflow-x: hidden;
-    }
-
-    .app {
-        max-width: none;
-        width: 100%;
-        padding: 12px;
-    }
-
-    .topbar,
-    .hero-top,
-    .section-head,
-    .panel-head-row,
-    .modal-actions {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 10px;
-        align-items: stretch;
-    }
-
-    .title-wrap h1,
-    .hero h2 {
-        font-size: 24px;
-        line-height: 1.2;
-    }
-
-    .actions,
-    .inline-actions,
-    .filters {
-        width: 100%;
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 8px;
-    }
-
-    .actions button,
-    .inline-actions button,
-    .filters button,
-    .filters select,
-    .dropdown,
-    .dropdown > button {
-        width: 100%;
-    }
-
-    .dropdown-menu {
-        left: 0;
-        right: auto;
-        min-width: 0;
-        width: 100%;
-    }
-
-    .summary-grid,
-    .workspace,
-    .grid-2,
-    .grid-3,
-    .project-mini-grid {
-        grid-template-columns: 1fr !important;
-    }
-
-    .side-panel,
-    .main-panel,
-    .hero,
-    .form-card,
-    .card {
-        border-radius: 16px;
-    }
-
-    .main-body,
-    .panel-head,
-    .hero,
-    .form-card,
-    .card {
-        padding: 14px;
-    }
-
-    .tabs {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        padding: 0 12px;
-        scrollbar-width: thin;
-    }
-
-    .tab {
-        flex: 0 0 auto;
-        white-space: nowrap;
-    }
-
-    .table-wrap {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    table {
-        min-width: 760px;
-    }
-
-    .doc-item,
-    .task-item {
-        grid-template-columns: 1fr;
-        align-items: stretch;
-    }
-
-    .document-actions {
-        justify-content: flex-start;
-        overflow-x: auto;
-        padding-bottom: 2px;
-    }
-
-    .modal-backdrop {
-        padding: 14px;
-    }
-
-    .modal {
-        width: 100%;
-        max-height: calc(100vh - 28px);
-        border-radius: 18px;
-        padding: 14px;
-    }
-
-    input,
-    select,
-    textarea {
-        font-size: 16px;
-    }
 }
