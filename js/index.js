@@ -5,13 +5,10 @@ import {
   getAuth,
   setPersistence,
   browserLocalPersistence,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendEmailVerification,
-  sendPasswordResetEmail,
+  GoogleAuthProvider,
+  signInWithPopup,
   signOut,
-  onAuthStateChanged,
-  updateProfile
+  onAuthStateChanged
 } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 
 import {
@@ -34,7 +31,7 @@ const firebaseConfig = {
 const GOOGLE_CLIENT_ID = '533118350621-ov27k8jd0ki944rc773j4gr8a3l7vfpk.apps.googleusercontent.com';
 const GOOGLE_API_KEY = 'AIzaSyC88moDvAWg7LFeJAgUSxXJV4nhAigSOKU';
 const DRIVE_DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-const DRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+const DRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata openid email profile';
 
 const GOOGLE_WAS_CONNECTED_KEY = 'bastcompta_google_was_connected';
 const TOKEN_EXPIRY_SAFETY_MS = 60 * 1000;
@@ -56,6 +53,7 @@ const globalSaveBtn = document.getElementById('globalSaveBtn');
 const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
 const forgotPasswordBtn = document.getElementById('forgotPasswordBtn');
+const googleLoginBtn = document.getElementById('googleLoginBtn');
 const sendVerificationBtn = document.getElementById('sendVerificationBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const connectDriveBtn = document.getElementById('connectDriveBtn');
@@ -98,8 +96,8 @@ function setMessage(text, type = '') {
 
 function switchAuthTab(tabName) {
   authTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.authTab === tabName));
-  loginForm.classList.toggle('hidden', tabName !== 'login');
-  registerForm.classList.toggle('hidden', tabName !== 'register');
+  loginForm?.classList.toggle('hidden', tabName !== 'login');
+  registerForm?.classList.toggle('hidden', tabName !== 'register');
   setMessage('');
 }
 
@@ -125,7 +123,10 @@ function humanizeAuthError(error) {
     'auth/network-request-failed': 'Erreur réseau. Vérifie ta connexion.',
     'auth/missing-email': 'Merci de saisir une adresse mail.',
     'auth/user-disabled': 'Ce compte a été désactivé.',
-    'auth/configuration-not-found': 'La configuration Firebase est incomplète ou le domaine n’est pas autorisé.'
+    'auth/configuration-not-found': 'La configuration Firebase est incomplète ou le domaine n’est pas autorisé.',
+    'auth/popup-closed-by-user': 'La fenêtre Google a été fermée avant la fin de la connexion.',
+    'auth/popup-blocked': 'Le navigateur a bloqué la fenêtre Google. Autorise les pop-ups pour ce site.',
+    'auth/account-exists-with-different-credential': 'Un compte existe déjà avec une autre méthode de connexion.'
   };
   return map[code] || 'Une erreur est survenue. Vérifie la configuration Firebase.';
 }
@@ -134,16 +135,21 @@ function isTokenFresh() {
   return !!googleAccessToken && Date.now() < (googleTokenExpiresAt - TOKEN_EXPIRY_SAFETY_MS);
 }
 
+function getDriveConnectionKey() {
+  const userKey = normalizeEmail(auth?.currentUser?.email || 'anonymous');
+  return GOOGLE_WAS_CONNECTED_KEY + '_' + userKey;
+}
+
 function markDriveConnected() {
-  localStorage.setItem(GOOGLE_WAS_CONNECTED_KEY, '1');
+  localStorage.setItem(getDriveConnectionKey(), '1');
 }
 
 function clearDriveConnectionFlag() {
-  localStorage.removeItem(GOOGLE_WAS_CONNECTED_KEY);
+  localStorage.removeItem(getDriveConnectionKey());
 }
 
 function wasDrivePreviouslyConnected() {
-  return localStorage.getItem(GOOGLE_WAS_CONNECTED_KEY) === '1';
+  return localStorage.getItem(getDriveConnectionKey()) === '1';
 }
 
 function updateDriveButtons() {
@@ -151,6 +157,75 @@ function updateDriveButtons() {
   connectDriveBtn.textContent = connected ? 'Google Drive connecté' : 'Connecter Google Drive';
   connectDriveBtn.disabled = connected || !googleDriveReady;
   disconnectDriveBtn.disabled = !connected && !wasDrivePreviouslyConnected();
+}
+
+
+function clearGoogleDriveTokenOnly() {
+  googleAccessToken = null;
+  googleTokenExpiresAt = 0;
+  googleRequestInFlight = null;
+  if (window.gapi?.client) gapi.client.setToken(null);
+}
+
+async function getGoogleTokenEmail(accessToken) {
+  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: 'Bearer ' + accessToken }
+  });
+
+  if (!res.ok) {
+    throw new Error('Impossible de vérifier le compte Google Drive utilisé.');
+  }
+
+  const profile = await res.json();
+  return normalizeEmail(profile?.email || '');
+}
+
+async function validateDriveAccountMatchesFirebase(accessToken) {
+  const appEmail = normalizeEmail(auth?.currentUser?.email || '');
+  const driveEmail = await getGoogleTokenEmail(accessToken);
+
+  if (!appEmail) {
+    throw new Error('Aucun utilisateur BastCompta connecté.');
+  }
+
+  if (!driveEmail) {
+    throw new Error('Adresse Gmail du compte Drive introuvable.');
+  }
+
+  if (driveEmail !== appEmail) {
+    try {
+      google.accounts.oauth2.revoke(accessToken);
+    } catch (error) {
+      console.warn('Révocation du token Drive impossible.', error);
+    }
+
+    throw new Error(
+      'Compte Google Drive refusé. Vous êtes connecté à BastCompta avec ' +
+      appEmail +
+      ', mais le Drive sélectionné est ' +
+      driveEmail +
+      '. Utilisez le même compte Google pour la connexion et les sauvegardes.'
+    );
+  }
+
+  return driveEmail;
+}
+
+async function acceptGoogleDriveToken(tokenResponse) {
+  if (!tokenResponse?.access_token) {
+    throw new Error('Autorisation Google Drive refusée.');
+  }
+
+  const accessToken = tokenResponse.access_token;
+  await validateDriveAccountMatchesFirebase(accessToken);
+
+  googleAccessToken = accessToken;
+  googleTokenExpiresAt = Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
+  gapi.client.setToken({ access_token: googleAccessToken });
+  markDriveConnected();
+  updateDriveButtons();
+  broadcastDriveConnected();
+  return googleAccessToken;
 }
 
 function grantPortalModuleAccess() {
@@ -193,7 +268,7 @@ function showPortal(user) {
   portalScreen.classList.remove('hidden');
   currentUserEl.innerHTML = '🟢 Connecté';
   showTrialInfo(user);
-  sendVerificationBtn.style.display = user.emailVerified ? 'none' : 'inline-flex';
+  if (sendVerificationBtn) sendVerificationBtn.style.display = 'none';
   updateDriveButtons();
 
   if (wasDrivePreviouslyConnected()) {
@@ -206,8 +281,8 @@ function showAuth() {
   unloadProtectedFrames();
   portalScreen.classList.add('hidden');
   authScreen.classList.remove('hidden');
-  loginForm.reset();
-  registerForm.reset();
+  loginForm?.reset();
+  registerForm?.reset();
 }
 
 function getFrameOrigin(frame) {
@@ -1389,15 +1464,14 @@ async function initGoogleDrive() {
       client_id: GOOGLE_CLIENT_ID,
       scope: DRIVE_SCOPES,
       prompt: '',
-      callback: tokenResponse => {
+      callback: async tokenResponse => {
         googleRequestInFlight = null;
-        if (tokenResponse?.access_token) {
-          googleAccessToken = tokenResponse.access_token;
-          googleTokenExpiresAt = Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
-          gapi.client.setToken({ access_token: googleAccessToken });
-          markDriveConnected();
+        try {
+          await acceptGoogleDriveToken(tokenResponse);
+        } catch (error) {
+          clearGoogleDriveTokenOnly();
           updateDriveButtons();
-          broadcastDriveConnected();
+          setMessage(error?.message || 'Connexion Google Drive refusée.', 'error');
         }
       },
       error_callback: error => {
@@ -1428,17 +1502,13 @@ async function ensureGoogleAccessToken(interactive = true) {
       googleTokenClient.callback = previousCallback;
       googleRequestInFlight = null;
 
-      if (tokenResponse?.access_token) {
-        googleAccessToken = tokenResponse.access_token;
-        googleTokenExpiresAt = Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
-        gapi.client.setToken({ access_token: googleAccessToken });
-        markDriveConnected();
+      try {
+        const token = await acceptGoogleDriveToken(tokenResponse);
+        resolve(token);
+      } catch (error) {
+        clearGoogleDriveTokenOnly();
         updateDriveButtons();
-        broadcastDriveConnected();
-        resolve(googleAccessToken);
-      } else {
-        updateDriveButtons();
-        reject(new Error('Autorisation Google Drive refusée.'));
+        reject(error);
       }
     };
 
@@ -1460,7 +1530,7 @@ async function connectGoogleDrive() {
     setMessage('Google Drive connecté.', 'success');
   } catch (error) {
     console.error(error);
-    setMessage('Connexion Google Drive refusée ou impossible.', 'error');
+    setMessage(error?.message || 'Connexion Google Drive refusée ou impossible.', 'error');
   }
 }
 
@@ -1820,63 +1890,16 @@ await setPersistence(auth, browserLocalPersistence);
 await initGoogleDrive();
 bindIframeMessaging();
 
-registerForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-
-  const email = normalizeEmail(document.getElementById('registerEmail').value);
-  const password = document.getElementById('registerPassword').value;
-  const confirmPassword = document.getElementById('registerPasswordConfirm').value;
-
-  if (!email) {
-    setMessage('Merci de saisir une adresse mail valide.', 'error');
-    return;
-  }
-
-  if (password.length < 8) {
-    setMessage('Le mot de passe doit contenir au moins 8 caractères.', 'error');
-    return;
-  }
-
-  if (password !== confirmPassword) {
-    setMessage('Les mots de passe ne correspondent pas.', 'error');
-    return;
-  }
-
-  try {
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(credential.user, { displayName: email });
-    await sendEmailVerification(credential.user);
-    setMessage('Compte créé. Un email de vérification a été envoyé.', 'success');
-  } catch (error) {
-    setMessage(humanizeAuthError(error), 'error');
-  }
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
 });
 
-loginForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-
-  const email = normalizeEmail(document.getElementById('loginEmail').value);
-  const password = document.getElementById('loginPassword').value;
-
+googleLoginBtn?.addEventListener('click', async () => {
   try {
-    await signInWithEmailAndPassword(auth, email, password);
+    setMessage('Connexion Google en cours…', 'warning');
+    await signInWithPopup(auth, googleProvider);
     setMessage('Connexion réussie.', 'success');
-  } catch (error) {
-    setMessage(humanizeAuthError(error), 'error');
-  }
-});
-
-forgotPasswordBtn.addEventListener('click', async () => {
-  const email = normalizeEmail(document.getElementById('loginEmail').value);
-
-  if (!email) {
-    setMessage('Saisis ton adresse mail dans le champ de connexion pour recevoir le lien.', 'warning');
-    return;
-  }
-
-  try {
-    await sendPasswordResetEmail(auth, email);
-    setMessage('Email de réinitialisation envoyé.', 'success');
   } catch (error) {
     setMessage(humanizeAuthError(error), 'error');
   }
@@ -1892,7 +1915,7 @@ logoutBtn.addEventListener('click', async () => {
   }
 });
 
-sendVerificationBtn.addEventListener('click', async () => {
+sendVerificationBtn?.addEventListener('click', async () => {
   const user = auth.currentUser;
   if (!user) return;
 

@@ -188,6 +188,40 @@ body {
     line-height: 1.6;
 }
 
+
+.google-login-btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 52px;
+    border-radius: 16px;
+    background: #fff;
+    color: var(--text);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-soft);
+    font-size: 15px;
+}
+
+.google-login-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: linear-gradient(135deg, #4285f4, #34a853 45%, #fbbc05 72%, #ea4335);
+    font-weight: 900;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.auth-google-hint {
+    margin-top: 14px;
+    text-align: center;
+}
+
 .auth-tabs,
 .main-tabs {
     display: flex;

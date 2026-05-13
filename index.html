@@ -79,55 +79,17 @@
 
           <div class="auth-head">
             <h2>Connexion à votre espace</h2>
-            <p>Identifiez-vous ou créez votre compte pour accéder au portail.</p>
+            <p>Connectez-vous avec votre compte Google pour accéder au portail.</p>
           </div>
 
-          <div class="auth-tabs">
-            <button class="auth-tab active" data-auth-tab="login" type="button">Connexion</button>
-            <button class="auth-tab" data-auth-tab="register" type="button">Créer un compte</button>
+          <button id="googleLoginBtn" class="google-login-btn" type="button">
+            <span class="google-login-icon" aria-hidden="true">G</span>
+            <span>Continuer avec Google</span>
+          </button>
+
+          <div class="hint auth-google-hint">
+            La connexion par adresse mail et mot de passe a été supprimée.
           </div>
-
-          <form id="loginForm" class="stack">
-            <div class="field-group">
-              <label for="loginEmail">Adresse mail</label>
-              <input id="loginEmail" type="email" autocomplete="email" placeholder="exemple@domaine.be" required />
-            </div>
-
-            <div class="field-group">
-              <label for="loginPassword">Mot de passe</label>
-              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Votre mot de passe"
-                required />
-            </div>
-
-            <button class="primary" type="submit">Se connecter</button>
-
-            <div class="inline-links">
-              <button id="forgotPasswordBtn" class="link-btn" type="button">Mot de passe oublié</button>
-              <span class="inline-note">Un email de réinitialisation pourra être envoyé.</span>
-            </div>
-          </form>
-
-          <form id="registerForm" class="stack hidden">
-            <div class="field-group">
-              <label for="registerEmail">Adresse mail</label>
-              <input id="registerEmail" type="email" autocomplete="email" placeholder="exemple@domaine.be" required />
-            </div>
-
-            <div class="field-group">
-              <label for="registerPassword">Mot de passe</label>
-              <input id="registerPassword" type="password" autocomplete="new-password" minlength="8"
-                placeholder="Minimum 8 caractères" required />
-            </div>
-
-            <div class="field-group">
-              <label for="registerPasswordConfirm">Confirmer le mot de passe</label>
-              <input id="registerPasswordConfirm" type="password" autocomplete="new-password" minlength="8"
-                placeholder="Répète le mot de passe" required />
-            </div>
-
-            <button class="primary" type="submit">Créer le compte</button>
-            <div class="hint">Après création, un email de vérification peut être envoyé.</div>
-          </form>
 
           <div id="authMessage" class="message"></div>
         </div>
