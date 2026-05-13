@@ -1055,7 +1055,7 @@ function renderMoneyTable(items, type) {
                 <tr>
                   <td>${formatDate(item.date)}</td>
                   <td>${escapeHtml(item.ref || '—')}</td>
-                  <td>${escapeHtml(item.description || moneyTypeLabel(type) || '—')}<br><small>${escapeHtml(item.source || '')}${item.fileName ? ' • ' + escapeHtml(item.fileName) : ''}</small></td>
+                  <td>${escapeHtml(item.description || `${moneyTypeLabel(type)} ${item.ref || ''}`.trim() || '—')}</td>
                   <td class="num">${formatMoney(projectMoneyValue(item))}${type === 'invoice' && Number(item.suppliesHtva || item.suppliesSaleHtva || item.suppliesCost || 0) ? '<br><small>Fournitures vendues: ' + formatMoney(item.suppliesSaleHtva || item.suppliesHtva || 0) + ' · Revient: ' + formatMoney(item.suppliesCost || item.suppliesCostHtva || item.suppliesHtva || 0) + '</small>' : ''}</td>
                   <td class="no-print">
                     <div class="inline-actions document-actions">
@@ -1123,7 +1123,7 @@ async function previewCrmLinkedDocument(type, itemId) {
         <div class="modal-head">
           <div>
             <h2>${escapeHtml(moneyTypeLabel(type))} ${escapeHtml(item.ref || doc.documentNumber || '')}</h2>
-            <div class="hint">${escapeHtml(item.fileName || item.source || 'Document lié')}</div>
+            <div class="hint">${escapeHtml(item.description || `${moneyTypeLabel(type)} ${item.ref || ''}`.trim())}</div>
           </div>
           <button class="small ghost" onclick="closeGenericModal()">✕</button>
         </div>
