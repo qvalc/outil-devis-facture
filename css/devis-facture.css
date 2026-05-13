@@ -87,24 +87,48 @@ button.danger {
 .tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 14px;
+    gap: 26px;
+    margin-bottom: 18px;
+    padding: 0 2px 8px;
+    border-bottom: 1px solid var(--line);
 }
 
 .tab {
-    border: 1px solid var(--line);
-    background: #fff;
-    color: var(--ink);
-    padding: 9px 13px;
+    position: relative;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    padding: 10px 0;
     cursor: pointer;
     font-weight: 700;
-    border-radius: 8px;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.tab:hover {
+    color: var(--ink);
+}
+
+.tab::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -9px;
+    width: 0;
+    height: 2px;
+    background: var(--ink);
+    transition: width .18s ease;
+}
+
+.tab:hover::after,
+.tab.active::after {
+    width: 100%;
 }
 
 .tab.active {
-    background: #eaf1ff;
-    border-color: #b9cdfc;
-    color: var(--primary);
+    background: transparent;
+    border-color: transparent;
+    color: var(--ink);
 }
 
 .page {
