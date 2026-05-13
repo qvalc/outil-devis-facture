@@ -1131,37 +1131,37 @@ async function prepareNewDocument(docKey, kind = docKey) {
 }
 
 const INVOICE_STATUS_LABELS = {
-  draft: 'Brouillon',
-  sent: 'Envoyée',
+  unpaid: 'À payer',
   paid: 'Payée',
   partial: 'Partiellement payée',
-  cancelled: 'Annulée',
+  overpaid: 'Trop payée',
   credit_note: 'Note de crédit'
 };
 
 function getInvoiceStatusLabel(status) {
-  return INVOICE_STATUS_LABELS[status] || INVOICE_STATUS_LABELS.draft;
+  return INVOICE_STATUS_LABELS[status] || INVOICE_STATUS_LABELS.unpaid;
 }
 
 function getEffectiveInvoiceStatus(doc = data.invoice) {
-  const explicit = String(doc?.status || 'draft');
-  if (explicit === 'cancelled' || explicit === 'credit_note') return explicit;
   const totals = totalsFor('invoice');
+  const total = toNumber(totals.tvac);
   const paid = toNumber(doc?.paidAmount);
-  if (totals.tvac > 0 && paid >= totals.tvac - 0.009) return 'paid';
-  if (paid > 0.009) return 'partial';
-  return explicit || 'draft';
+
+  if (total < -0.009) return 'credit_note';
+  if (total > 0.009 && paid > total + 0.009) return 'overpaid';
+  if (total > 0.009 && Math.abs(paid - total) <= 0.009) return 'paid';
+  if (total > 0.009 && paid > 0.009) return 'partial';
+
+  return 'unpaid';
 }
 
 function setInvoiceStatus(status) {
-  data.invoice.status = status || 'draft';
+  // Le statut facture est maintenant calculé automatiquement.
   saveData(false);
 }
 
 function cancelInvoice() {
-  const number = String(data.invoice.documentNumber || '').trim() || 'cette facture';
-  if (!confirm(`Marquer ${number} comme annulée ?\n\nElle ne sera plus envoyée comme vente en comptabilité. Si elle avait déjà été envoyée, l’envoi vers comptabilité supprimera/remplacera ses lignes existantes hors période TVA clôturée.`)) return;
-  data.invoice.status = 'cancelled';
+  // Statut annulé supprimé.
   saveData(false);
 }
 
@@ -1188,7 +1188,7 @@ async function createCreditNoteFromInvoice() {
   data.invoice.documentNumber = creditNumber;
   data.invoice.linkedInvoiceNumber = original;
   data.invoice.creditNoteReason = data.invoice.creditNoteReason || `Note de crédit liée à la facture ${original}`;
-  data.invoice.status = 'credit_note';
+  data.invoice.status = '';
   data.invoice.paidAmount = 0;
   data.invoice.lines = cloneLinesAsCredit(data.invoice.lines);
   if (data.invoice.suppliesEnabled) {
@@ -1203,17 +1203,6 @@ function getInvoiceAccountingRowsForComptabilite() {
   const invoice = data.invoice || {};
   const status = getEffectiveInvoiceStatus(invoice);
   const invoiceNumber = String(invoice.documentNumber || '').trim();
-
-  if (status === 'cancelled') {
-    return {
-      action: 'cancel',
-      documentType: 'cancelled_invoice',
-      documentStatus: status,
-      invoiceNumber,
-      rows: [],
-      message: `La facture ${invoiceNumber || ''} est annulée. L’envoi vers comptabilité retirera ses lignes existantes si la période TVA n’est pas clôturée.`
-    };
-  }
 
   const mainLines = Array.isArray(invoice.lines) ? invoice.lines : [];
   const suppliesLines = invoice.suppliesEnabled && Array.isArray(invoice.suppliesLines) ? invoice.suppliesLines : [];
@@ -3691,20 +3680,12 @@ function renderDocumentPage(docKey) {
   <div class="doc-head-right">
     <div class="doc-title-top">${docLabel}</div>
     ${docKey === 'invoice' ? `
-      <div class="client-box no-print" style="margin-bottom:10px;">
-        <div class="box-title">Statut facture</div>
-        <div class="stack">
-          <select onchange="setInvoiceStatus(this.value)">
-            <option value="draft" ${invoiceStatus === 'draft' ? 'selected' : ''}>Brouillon</option>
-            <option value="sent" ${invoiceStatus === 'sent' ? 'selected' : ''}>Envoyée</option>
-            <option value="partial" ${invoiceStatus === 'partial' ? 'selected' : ''}>Partiellement payée</option>
-            <option value="paid" ${invoiceStatus === 'paid' ? 'selected' : ''}>Payée</option>
-            <option value="cancelled" ${invoiceStatus === 'cancelled' ? 'selected' : ''}>Annulée</option>
-            <option value="credit_note" ${invoiceStatus === 'credit_note' ? 'selected' : ''}>Note de crédit</option>
-          </select>
-          ${invoiceStatus === 'credit_note' ? `<input placeholder="Facture d’origine" value="${escapeAttr(doc.linkedInvoiceNumber || '')}" onchange="data.invoice.linkedInvoiceNumber=this.value; saveData(false)">` : ''}
-          <div class="hint">${escapeHtml(getInvoiceStatusLabel(invoiceStatus))}${invoiceStatus === 'cancelled' ? ' — exclue de la comptabilité' : ''}</div>
-        </div>
+  <div class="client-box no-print" style="margin-bottom:10px;">
+    <div class="box-title">Statut facture</div>
+    <div class="invoice-status-display invoice-status-${escapeAttr(invoiceStatus)}">
+      ${escapeHtml(getInvoiceStatusLabel(invoiceStatus))}
+    </div>
+    ${invoiceStatus === 'credit_note' ? `<input placeholder="Facture d’origine" value="${escapeAttr(doc.linkedInvoiceNumber || '')}" onchange="data.invoice.linkedInvoiceNumber=this.value; saveData(false)">` : ''}
       </div>
     ` : ''}
 

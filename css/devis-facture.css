@@ -1277,3 +1277,47 @@ body.backup-pdf-capture .sheet {
     border-color: var(--line);
     box-shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
 }
+
+.invoice-status-display {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    min-height: 30px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #f8fafc;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.invoice-status-paid {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.invoice-status-partial {
+    border-color: #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
+}
+
+.invoice-status-overpaid {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1e3a8a;
+}
+
+.invoice-status-credit_note {
+    border-color: #e9d5ff;
+    background: #faf5ff;
+    color: #6b21a8;
+}
+
+.invoice-status-unpaid {
+    border-color: var(--line);
+    background: #f8fafc;
+    color: var(--muted);
+}
