@@ -282,41 +282,31 @@ function showPortal(user) {
   if (sendVerificationBtn) sendVerificationBtn.style.display = 'none';
   updateDriveButtons();
 
-  const openModules = () => {
+  const openModulesIfDriveReady = () => {
+    if (!isTokenFresh()) {
+      unloadProtectedFrames();
+      setMessage('Google Drive doit être connecté avec ce même compte Google avant de charger les outils.', 'warning');
+      return false;
+    }
+
     loadProtectedFrames();
-    if (isTokenFresh()) broadcastDriveConnected();
+    broadcastDriveConnected();
+    return true;
   };
 
-  if (isTokenFresh()) {
-    openModules();
-    return;
-  }
+  if (openModulesIfDriveReady()) return;
 
-  // Pendant le clic de connexion Google, on attend que le token Drive récupéré
-  // par Firebase soit accepté avant de charger les modules.
   if (googleLoginFlowActive) {
     setMessage('Préparation de Google Drive…', 'warning');
     return;
   }
 
-  // Au rechargement de la page, Firebase peut rester connecté alors que le token
-  // Drive, lui, n’est plus présent en mémoire. On tente une reconnexion silencieuse.
-  // Si elle échoue, on ne charge pas les iframes pour éviter les alertes Drive
-  // dans Devis/Compta/Suivi client.
   if (wasDrivePreviouslyConnected()) {
-    maybeRestoreDriveConnection().then(() => {
-      if (isTokenFresh()) {
-        openModules();
-      } else {
-        currentUserEl.innerHTML = '🟠 Drive à reconnecter';
-        updateDriveButtons();
-      }
+    maybeRestoreDriveConnection().finally(() => {
+      openModulesIfDriveReady();
+      updateDriveButtons();
     });
-    return;
   }
-
-  currentUserEl.innerHTML = '🟠 Drive à connecter';
-  updateDriveButtons();
 }
 
 function showAuth() {
@@ -1571,6 +1561,8 @@ async function connectGoogleDrive() {
   try {
     await ensureGoogleAccessToken(true);
     setMessage('Google Drive connecté.', 'success');
+    loadProtectedFrames();
+    broadcastDriveConnected();
   } catch (error) {
     console.error(error);
     setMessage(error?.message || 'Connexion Google Drive refusée ou impossible.', 'error');
@@ -1624,7 +1616,7 @@ function broadcastDriveDisconnected() {
 }
 
 function bindIframeMessaging() {
-  [devisFrame, comptaFrame, chantierFrame].forEach(frame => {
+  [devisFrame, comptaFrame, chantierFrame, impotsFrame].forEach(frame => {
     frame?.addEventListener('load', () => {
       if (isTokenFresh()) broadcastDriveConnected();
       else broadcastDriveDisconnected();
