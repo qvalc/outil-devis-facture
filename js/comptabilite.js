@@ -2576,7 +2576,7 @@ function renderSales() {
     <td>${money(salesRowNet(row))}</td>
     <td>${money(salesRowVat(row))}</td>
     <td>${invoiceButton}</td>
-    <button class="delete-icon-btn" title="Supprimer" aria-label="Supprimer" ${locked ? 'disabled' : ''} onclick="deleteAccountingRow('sales', ${i})">×</button>
+    <td><button class="delete-icon-btn" title="Supprimer" aria-label="Supprimer" ${locked ? 'disabled' : ''} onclick="deleteAccountingRow('sales', ${i})">×</button></td>
   </tr>
 `}).join(''),
     footer: `
