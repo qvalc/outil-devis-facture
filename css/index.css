@@ -947,3 +947,18 @@ iframe {
 .tab-icon-impots {
     background: #f3e8ff;
 }
+
+.settings-gear-btn {
+    font-size: 22px;
+    line-height: 1;
+    color: #2563eb;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border: 1px solid #bfdbfe;
+}
+
+.settings-gear-btn:hover {
+    color: #1d4ed8;
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    border-color: #93c5fd;
+    transform: rotate(20deg);
+}
