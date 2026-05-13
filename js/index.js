@@ -292,17 +292,31 @@ function showPortal(user) {
     return;
   }
 
+  // Pendant le clic de connexion Google, on attend que le token Drive récupéré
+  // par Firebase soit accepté avant de charger les modules.
   if (googleLoginFlowActive) {
     setMessage('Préparation de Google Drive…', 'warning');
     return;
   }
 
+  // Au rechargement de la page, Firebase peut rester connecté alors que le token
+  // Drive, lui, n’est plus présent en mémoire. On tente une reconnexion silencieuse.
+  // Si elle échoue, on ne charge pas les iframes pour éviter les alertes Drive
+  // dans Devis/Compta/Suivi client.
   if (wasDrivePreviouslyConnected()) {
-    maybeRestoreDriveConnection().finally(openModules);
+    maybeRestoreDriveConnection().then(() => {
+      if (isTokenFresh()) {
+        openModules();
+      } else {
+        currentUserEl.innerHTML = '🟠 Drive à reconnecter';
+        updateDriveButtons();
+      }
+    });
     return;
   }
 
-  openModules();
+  currentUserEl.innerHTML = '🟠 Drive à connecter';
+  updateDriveButtons();
 }
 
 function showAuth() {
