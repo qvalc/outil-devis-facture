@@ -44,6 +44,7 @@ let googleRequestInFlight = null;
 let silentReconnectAttempted = false;
 let hiddenDriveFilesCache = [];
 let hiddenDriveActiveCategory = 'all';
+let googleLoginFlowActive = false;
 
 const authScreen = document.getElementById('authScreen');
 const portalScreen = document.getElementById('portalScreen');
@@ -228,6 +229,17 @@ async function acceptGoogleDriveToken(tokenResponse) {
   return googleAccessToken;
 }
 
+async function acceptFirebaseGoogleDriveAccessToken(accessToken) {
+  if (!accessToken) {
+    throw new Error('Firebase n’a pas renvoyé de jeton Google Drive.');
+  }
+
+  return acceptGoogleDriveToken({
+    access_token: accessToken,
+    expires_in: 3600
+  });
+}
+
 function grantPortalModuleAccess() {
   try {
     sessionStorage.setItem('bastcompta_portal_access', 'granted');
@@ -263,7 +275,6 @@ function unloadProtectedFrames() {
 
 function showPortal(user) {
   grantPortalModuleAccess();
-  loadProtectedFrames();
   authScreen.classList.add('hidden');
   portalScreen.classList.remove('hidden');
   currentUserEl.innerHTML = '🟢 Connecté';
@@ -271,9 +282,27 @@ function showPortal(user) {
   if (sendVerificationBtn) sendVerificationBtn.style.display = 'none';
   updateDriveButtons();
 
-  if (wasDrivePreviouslyConnected()) {
-    maybeRestoreDriveConnection();
+  const openModules = () => {
+    loadProtectedFrames();
+    if (isTokenFresh()) broadcastDriveConnected();
+  };
+
+  if (isTokenFresh()) {
+    openModules();
+    return;
   }
+
+  if (googleLoginFlowActive) {
+    setMessage('Préparation de Google Drive…', 'warning');
+    return;
+  }
+
+  if (wasDrivePreviouslyConnected()) {
+    maybeRestoreDriveConnection().finally(openModules);
+    return;
+  }
+
+  openModules();
 }
 
 function showAuth() {
@@ -1892,29 +1921,27 @@ bindIframeMessaging();
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/drive.appdata');
+googleProvider.addScope('openid');
+googleProvider.addScope('email');
+googleProvider.addScope('profile');
 googleProvider.setCustomParameters({
-  prompt: 'select_account'
+  prompt: 'select_account consent'
 });
 
 googleLoginBtn?.addEventListener('click', async () => {
+  googleLoginFlowActive = true;
   try {
     setMessage('Connexion Google en cours…', 'warning');
-
     const result = await signInWithPopup(auth, googleProvider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
-
-    if (credential?.accessToken) {
-      await acceptGoogleDriveToken({
-        access_token: credential.accessToken,
-        expires_in: 3600
-      });
-      setMessage('Connexion Google réussie. Google Drive est connecté pour les sauvegardes.', 'success');
-    } else {
-      await connectGoogleDrive();
-    }
+    await acceptFirebaseGoogleDriveAccessToken(credential?.accessToken);
+    loadProtectedFrames();
+    broadcastDriveConnected();
+    setMessage('Connexion réussie. Google Drive est connecté avec le même compte.', 'success');
   } catch (error) {
-    console.error(error);
-    setMessage(error?.message || humanizeAuthError(error), 'error');
+    setMessage(humanizeAuthError(error), 'error');
+  } finally {
+    googleLoginFlowActive = false;
   }
 });
 
