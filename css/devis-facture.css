@@ -1278,46 +1278,166 @@ body.backup-pdf-capture .sheet {
     box-shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
 }
 
-.invoice-status-display {
-    display: inline-flex;
-    align-items: center;
-    width: fit-content;
-    min-height: 30px;
-    padding: 6px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: #f8fafc;
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 800;
-}
 
-.invoice-status-paid {
-    border-color: #bbf7d0;
-    background: #f0fdf4;
-    color: #166534;
-}
+/* ================================
+   Correctif responsive mobile Devis & Facture
+   ================================ */
+@media (max-width: 768px) {
+    body {
+        overflow-x: hidden;
+    }
 
-.invoice-status-partial {
-    border-color: #fed7aa;
-    background: #fff7ed;
-    color: #9a3412;
-}
+    .app {
+        max-width: none;
+        width: 100%;
+        padding: 12px;
+    }
 
-.invoice-status-overpaid {
-    border-color: #bfdbfe;
-    background: #eff6ff;
-    color: #1e3a8a;
-}
+    .topbar {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
 
-.invoice-status-credit_note {
-    border-color: #e9d5ff;
-    background: #faf5ff;
-    color: #6b21a8;
-}
+    .title-wrap h1 {
+        font-size: 26px;
+        line-height: 1.15;
+    }
 
-.invoice-status-unpaid {
-    border-color: var(--line);
-    background: #f8fafc;
-    color: var(--muted);
+    .actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .actions button,
+    .actions .file-label {
+        width: 100%;
+    }
+
+    .tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 22px;
+        padding: 0 0 10px;
+        margin-bottom: 14px;
+        scrollbar-width: thin;
+    }
+
+    .tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        font-size: 14px;
+    }
+
+    .toolbar {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 16px;
+    }
+
+    .toolbar-meta,
+    .toolbar-actions,
+    .toolbar-group {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .toolbar-actions,
+    .toolbar-group {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-left: 0;
+    }
+
+    .toolbar button,
+    .toolbar .split-button,
+    .toolbar .toolbar-menu {
+        width: 100%;
+    }
+
+    .split-button {
+        display: grid;
+        grid-template-columns: 1fr 44px;
+    }
+
+    .menu-panel {
+        left: 0;
+        right: auto;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .sheet,
+    .comm-panel,
+    .conditions-screen {
+        padding: 14px;
+        border-radius: 16px;
+    }
+
+    .doc-head,
+    .bottom,
+    .comm-grid,
+    .comm-meta,
+    .settings-grid,
+    .crm-drive-grid,
+    .peppol-grid,
+    .peppol-summary-grid {
+        grid-template-columns: 1fr !important;
+        gap: 14px;
+    }
+
+    .seller {
+        margin-top: 0;
+        align-items: flex-start;
+    }
+
+    .company-logo-wrap {
+        margin: 0;
+    }
+
+    .company-logo {
+        max-width: 80px;
+        max-height: 80px;
+    }
+
+    .doc-title-top {
+        font-size: 26px;
+        margin-bottom: 10px;
+    }
+
+    .client-box,
+    .pay-block,
+    .notes-block {
+        border-radius: 14px;
+    }
+
+    .meta-table-wrap,
+    .doc-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .meta-table,
+    .doc-table {
+        min-width: 900px;
+    }
+
+    .line-add-actions {
+        justify-content: stretch;
+        margin: 8px 0 14px;
+    }
+
+    .line-add-button {
+        width: 100%;
+    }
+
+    input,
+    textarea,
+    select {
+        font-size: 16px;
+    }
 }

@@ -640,3 +640,123 @@ textarea {
     opacity: .45;
     cursor: not-allowed;
 }
+
+/* ================================
+   Correctif responsive mobile Comptabilité
+   ================================ */
+@media (max-width: 768px) {
+    body {
+        overflow-x: hidden;
+    }
+
+    .app {
+        max-width: none;
+        width: 100%;
+        padding: 12px;
+    }
+
+    .topbar,
+    .title-wrap {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        align-items: stretch;
+    }
+
+    .title-wrap h1 {
+        font-size: 26px;
+    }
+
+    .top-actions,
+    .actions,
+    .inline-actions,
+    .section-head {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .top-actions button,
+    .actions button,
+    .inline-actions button,
+    .dropdown,
+    .dropdown-toggle {
+        width: 100%;
+    }
+
+    .dropdown-menu {
+        left: 0;
+        right: auto;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .summary-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .card {
+        padding: 14px;
+        border-radius: 16px;
+    }
+
+    .metric-value {
+        font-size: 24px;
+    }
+
+    .tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 22px;
+        padding: 0 0 10px;
+        margin-bottom: 14px;
+        scrollbar-width: thin;
+    }
+
+    .tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        font-size: 14px;
+    }
+
+    .page.two-cols,
+    .grid-2,
+    .vat-summary-details,
+    .backup-actions-panel {
+        grid-template-columns: 1fr !important;
+    }
+
+    .page.active {
+        gap: 12px;
+    }
+
+    .page.active > .card,
+    .page.active > section,
+    .vat-declaration-card {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+        min-width: 920px;
+    }
+
+    .table-sales,
+    .table-purchases {
+        min-width: 1100px;
+    }
+
+    input,
+    select,
+    textarea {
+        font-size: 16px;
+    }
+
+    .delete-icon-btn {
+        width: 36px;
+        min-width: 36px;
+        height: 36px;
+    }
+}
