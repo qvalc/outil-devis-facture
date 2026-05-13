@@ -1907,7 +1907,7 @@ sendVerificationBtn.addEventListener('click', async () => {
 
 function resizeIframeToContent(frame) {
   if (!frame) return;
-  frame.style.height = '5000px';
+  frame.style.height = '3000px';
 }
 
 function bindIframeAutoResize(frame) {
