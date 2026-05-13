@@ -135,70 +135,80 @@
   </div>
   </section>
 
-  <section id="portalScreen" class="hidden">
-    <div class="portal-shell">
-      <div class="portal-topbar">
-        <div class="main-tabs">
-          <button class="main-tab active" data-main-tab="devis" type="button"><span class="tab-icon"
-              aria-hidden="true">▣</span><span>Devis &amp; Facture</span></button>
-          <button class="main-tab" data-main-tab="compta" type="button"><span class="tab-icon"
-              aria-hidden="true">▥</span><span>Comptabilité</span></button>
-          <button class="main-tab" data-main-tab="chantier" type="button"><span class="tab-icon"
-              aria-hidden="true">♙</span><span>Suivi client</span></button>
-          <button class="main-tab" data-main-tab="impots" type="button"><span class="tab-icon"
-              aria-hidden="true">▤</span><span>Impôts IPP</span></button>
-          <input id="fullRestoreInput" type="file" accept="application/zip,.zip" class="hidden" />
-        </div>
+  <div class="main-tabs">
 
-        <div class="topbar-logo">
-          <img src="logo.png" alt="BastCompta">
-        </div>
+    <button class="main-tab active" data-main-tab="devis" type="button">
+      <span class="tab-icon tab-icon-devis" aria-hidden="true">📄</span>
+      <span>Devis &amp; Facture</span>
+    </button>
 
-        <div class="user-actions">
-          <button id="globalSaveBtn" class="ghost icon-btn" title="Sauvegarder">
-            💾
-          </button>
-          <div id="currentUser" class="user-pill"></div>
-          <div id="settingsMenu" class="settings-menu">
-            <button id="settingsMenuBtn" class="settings-icon-btn ghost" type="button" title="Menu utilisateur"
-              aria-label="Menu utilisateur">⌄</button>
-            <div class="settings-dropdown" id="settingsDropdown">
-              <button id="fullBackupBtn" type="button">Créer une sauvegarde ZIP</button>
-              <button id="fullRestoreBtn" type="button">Restaurer une sauvegarde ZIP</button>
-              <button id="hiddenDriveBtn" type="button">Fichiers Drive cachés</button>
-              <button id="connectDriveBtn" type="button">Connecter Google Drive</button>
-              <button id="disconnectDriveBtn" type="button">Déconnecter Google Drive</button>
-              <button id="sendVerificationBtn" type="button">Renvoyer email de vérification</button>
-              <div class="settings-separator"></div>
-              <button id="logoutBtn" class="danger-link" type="button">Déconnecter</button>
-            </div>
-          </div>
-        </div>
-      </div>
+    <button class="main-tab" data-main-tab="compta" type="button">
+      <span class="tab-icon tab-icon-compta" aria-hidden="true">📊</span>
+      <span>Comptabilité</span>
+    </button>
 
-      <div class="workspace">
-        <div class="workspace-head">
-          Vos outils sont chargés directement dans le portail.
-        </div>
+    <button class="main-tab" data-main-tab="chantier" type="button">
+      <span class="tab-icon tab-icon-client" aria-hidden="true">👥</span>
+      <span>Suivi client</span>
+    </button>
 
-        <div id="panel-devis" class="tab-panel active">
-          <iframe id="devisFrame" src="about:blank" data-src="devis-facture.html" title="Devis et Facture"></iframe>
-        </div>
+    <button class="main-tab" data-main-tab="impots" type="button">
+      <span class="tab-icon tab-icon-impots" aria-hidden="true">🧾</span>
+      <span>Impôts IPP</span>
+    </button>
 
-        <div id="panel-compta" class="tab-panel">
-          <iframe id="comptaFrame" src="about:blank" data-src="comptabilite.html" title="Comptabilité"></iframe>
-        </div>
+    <input id="fullRestoreInput" type="file" accept="application/zip,.zip" class="hidden" />
+  </div>
 
-        <div id="panel-chantier" class="tab-panel">
-          <iframe id="chantierFrame" src="about:blank" data-src="suivi-client.html" title="Suivi client"></iframe>
-        </div>
+  <div class="topbar-logo">
+    <img src="logo.png" alt="BastCompta">
+  </div>
 
-        <div id="panel-impots" class="tab-panel">
-          <iframe id="impotsFrame" src="about:blank" data-src="impots.html" title="Impôts IPP"></iframe>
-        </div>
-
+  <div class="user-actions">
+    <button id="globalSaveBtn" class="ghost icon-btn" title="Sauvegarder">
+      💾
+    </button>
+    <div id="currentUser" class="user-pill"></div>
+    <div id="settingsMenu" class="settings-menu">
+      <button id="settingsMenuBtn" class="settings-icon-btn ghost" type="button" title="Menu utilisateur"
+        aria-label="Menu utilisateur">⌄</button>
+      <div class="settings-dropdown" id="settingsDropdown">
+        <button id="fullBackupBtn" type="button">Créer une sauvegarde ZIP</button>
+        <button id="fullRestoreBtn" type="button">Restaurer une sauvegarde ZIP</button>
+        <button id="hiddenDriveBtn" type="button">Fichiers Drive cachés</button>
+        <button id="connectDriveBtn" type="button">Connecter Google Drive</button>
+        <button id="disconnectDriveBtn" type="button">Déconnecter Google Drive</button>
+        <button id="sendVerificationBtn" type="button">Renvoyer email de vérification</button>
+        <div class="settings-separator"></div>
+        <button id="logoutBtn" class="danger-link" type="button">Déconnecter</button>
       </div>
     </div>
+  </div>
+  </div>
+
+  <div class="workspace">
+    <div class="workspace-head">
+      Vos outils sont chargés directement dans le portail.
+    </div>
+
+    <div id="panel-devis" class="tab-panel active">
+      <iframe id="devisFrame" src="about:blank" data-src="devis-facture.html" title="Devis et Facture"></iframe>
+    </div>
+
+    <div id="panel-compta" class="tab-panel">
+      <iframe id="comptaFrame" src="about:blank" data-src="comptabilite.html" title="Comptabilité"></iframe>
+    </div>
+
+    <div id="panel-chantier" class="tab-panel">
+      <iframe id="chantierFrame" src="about:blank" data-src="suivi-client.html" title="Suivi client"></iframe>
+    </div>
+
+    <div id="panel-impots" class="tab-panel">
+      <iframe id="impotsFrame" src="about:blank" data-src="impots.html" title="Impôts IPP"></iframe>
+    </div>
+
+  </div>
+  </div>
   </section>
   </div>
 
