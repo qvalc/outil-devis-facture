@@ -34,6 +34,7 @@ const DRIVE_DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/
 const DRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata openid email profile';
 
 const GOOGLE_WAS_CONNECTED_KEY = 'bastcompta_google_was_connected';
+const GOOGLE_TOKEN_SESSION_KEY = 'bastcompta_google_drive_token';
 const TOKEN_EXPIRY_SAFETY_MS = 60 * 1000;
 
 let googleTokenClient = null;
@@ -153,6 +154,62 @@ function wasDrivePreviouslyConnected() {
   return localStorage.getItem(getDriveConnectionKey()) === '1';
 }
 
+function getGoogleTokenSessionKey() {
+  const userKey = normalizeEmail(auth?.currentUser?.email || 'anonymous');
+  return GOOGLE_TOKEN_SESSION_KEY + '_' + userKey;
+}
+
+function rememberGoogleDriveToken() {
+  try {
+    const email = normalizeEmail(auth?.currentUser?.email || '');
+    if (!email || !googleAccessToken || !googleTokenExpiresAt) return;
+    sessionStorage.setItem(getGoogleTokenSessionKey(), JSON.stringify({
+      email,
+      accessToken: googleAccessToken,
+      expiresAt: googleTokenExpiresAt
+    }));
+  } catch (error) {
+    console.warn('Mémorisation temporaire du token Drive impossible.', error);
+  }
+}
+
+function forgetGoogleDriveToken() {
+  try {
+    sessionStorage.removeItem(getGoogleTokenSessionKey());
+  } catch (error) {
+    console.warn('Suppression du token Drive temporaire impossible.', error);
+  }
+}
+
+function restoreGoogleDriveTokenFromSession() {
+  try {
+    const raw = sessionStorage.getItem(getGoogleTokenSessionKey());
+    if (!raw) return false;
+
+    const saved = JSON.parse(raw);
+    const appEmail = normalizeEmail(auth?.currentUser?.email || '');
+    const savedEmail = normalizeEmail(saved?.email || '');
+    const accessToken = saved?.accessToken || '';
+    const expiresAt = Number(saved?.expiresAt || 0);
+
+    if (!appEmail || savedEmail !== appEmail || !accessToken || Date.now() >= expiresAt - TOKEN_EXPIRY_SAFETY_MS) {
+      forgetGoogleDriveToken();
+      return false;
+    }
+
+    googleAccessToken = accessToken;
+    googleTokenExpiresAt = expiresAt;
+    if (window.gapi?.client) gapi.client.setToken({ access_token: googleAccessToken });
+    markDriveConnected();
+    updateDriveButtons();
+    return true;
+  } catch (error) {
+    console.warn('Restauration temporaire du token Drive impossible.', error);
+    forgetGoogleDriveToken();
+    return false;
+  }
+}
+
 function updateDriveButtons() {
   const connected = isTokenFresh();
   connectDriveBtn.textContent = connected ? 'Google Drive connecté' : 'Connecter Google Drive';
@@ -162,6 +219,7 @@ function updateDriveButtons() {
 
 
 function clearGoogleDriveTokenOnly() {
+  forgetGoogleDriveToken();
   googleAccessToken = null;
   googleTokenExpiresAt = 0;
   googleRequestInFlight = null;
@@ -223,6 +281,7 @@ async function acceptGoogleDriveToken(tokenResponse) {
   googleAccessToken = accessToken;
   googleTokenExpiresAt = Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
   gapi.client.setToken({ access_token: googleAccessToken });
+  rememberGoogleDriveToken();
   markDriveConnected();
   updateDriveButtons();
   broadcastDriveConnected();
@@ -274,6 +333,17 @@ function unloadProtectedFrames() {
 }
 
 function showPortal(user) {
+  if (!isTokenFresh()) {
+    revokePortalModuleAccess();
+    unloadProtectedFrames();
+    portalScreen.classList.add('hidden');
+    authScreen.classList.remove('hidden');
+    currentUserEl.innerHTML = '';
+    setMessage('Reconnecte-toi avec Google pour activer Google Drive avant de charger les outils.', 'warning');
+    updateDriveButtons();
+    return;
+  }
+
   grantPortalModuleAccess();
   authScreen.classList.add('hidden');
   portalScreen.classList.remove('hidden');
@@ -281,32 +351,8 @@ function showPortal(user) {
   showTrialInfo(user);
   if (sendVerificationBtn) sendVerificationBtn.style.display = 'none';
   updateDriveButtons();
-
-  const openModulesIfDriveReady = () => {
-    if (!isTokenFresh()) {
-      unloadProtectedFrames();
-      setMessage('Google Drive doit être connecté avec ce même compte Google avant de charger les outils.', 'warning');
-      return false;
-    }
-
-    loadProtectedFrames();
-    broadcastDriveConnected();
-    return true;
-  };
-
-  if (openModulesIfDriveReady()) return;
-
-  if (googleLoginFlowActive) {
-    setMessage('Préparation de Google Drive…', 'warning');
-    return;
-  }
-
-  if (wasDrivePreviouslyConnected()) {
-    maybeRestoreDriveConnection().finally(() => {
-      openModulesIfDriveReady();
-      updateDriveButtons();
-    });
-  }
+  loadProtectedFrames();
+  broadcastDriveConnected();
 }
 
 function showAuth() {
@@ -1588,6 +1634,7 @@ function disconnectGoogleDrive(clearRemembered = true) {
   googleTokenExpiresAt = 0;
   googleRequestInFlight = null;
   if (window.gapi?.client) gapi.client.setToken(null);
+  forgetGoogleDriveToken();
   if (clearRemembered) clearDriveConnectionFlag();
   updateDriveButtons();
   broadcastDriveDisconnected();
@@ -1941,9 +1988,8 @@ googleLoginBtn?.addEventListener('click', async () => {
     const result = await signInWithPopup(auth, googleProvider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     await acceptFirebaseGoogleDriveAccessToken(credential?.accessToken);
-    loadProtectedFrames();
-    broadcastDriveConnected();
     setMessage('Connexion réussie. Google Drive est connecté avec le même compte.', 'success');
+    showPortal(result.user || auth.currentUser);
   } catch (error) {
     setMessage(humanizeAuthError(error), 'error');
   } finally {
@@ -2046,7 +2092,17 @@ onAuthStateChanged(auth, async (user) => {
         return;
       }
 
-      showPortal(freshUser);
+      restoreGoogleDriveTokenFromSession();
+
+      if (isTokenFresh()) {
+        showPortal(freshUser);
+      } else {
+        revokePortalModuleAccess();
+        unloadProtectedFrames();
+        portalScreen.classList.add('hidden');
+        authScreen.classList.remove('hidden');
+        setMessage('Session Google Drive expirée. Clique sur Continuer avec Google pour reconnecter Drive.', 'warning');
+      }
     } catch (error) {
       console.error('Vérification abonnement impossible :', error);
       revokePortalModuleAccess();
