@@ -1901,7 +1901,27 @@ hiddenDriveModal?.addEventListener('click', event => {
   if (event.target === hiddenDriveModal) closeHiddenDriveModal();
 });
 
-connectDriveBtn.addEventListener('click', () => { settingsMenu?.classList.remove('open'); connectGoogleDrive(); });
+connectDriveBtn.addEventListener('click', async () => {
+
+  settingsMenu?.classList.remove('open');
+
+  alert(
+    "BastCompta utilise un espace privé caché de votre Google Drive pour stocker les sauvegardes.\n\n" +
+    "Google va demander une autorisation de stockage.\n\n" +
+    "Cochez la case puis cliquez sur Continuer pour activer la sauvegarde Drive."
+  );
+
+  try {
+
+    await connectGoogleDrive();
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+});
 disconnectDriveBtn.addEventListener('click', () => { settingsMenu?.classList.remove('open'); disconnectGoogleDrive(true); });
 if (fullBackupBtn) fullBackupBtn.addEventListener('click', () => { settingsMenu?.classList.remove('open'); handleFullBackupClick(); });
 if (fullRestoreBtn) fullRestoreBtn.addEventListener('click', () => { settingsMenu?.classList.remove('open'); handleFullRestoreClick(); });
