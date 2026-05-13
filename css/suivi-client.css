@@ -776,10 +776,17 @@ th.num {
 
 .download-menu summary {
     list-style: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+    height: 38px;
+    min-width: 128px;
+    padding: 0 14px;
     border: 1px solid var(--line);
     background: var(--panel);
     color: var(--text);
-    padding: 8px 10px;
     border-radius: 10px;
     cursor: pointer;
     font-weight: 700;
@@ -793,9 +800,11 @@ th.num {
 }
 
 .download-menu summary::after {
-    content: " ▾";
+    content: "▾";
+    display: inline-block;
     color: var(--muted);
     font-weight: 700;
+    line-height: 1;
 }
 
 .download-menu[open] summary {
