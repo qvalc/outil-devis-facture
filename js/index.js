@@ -34,7 +34,7 @@ const firebaseConfig = {
 const GOOGLE_CLIENT_ID = '533118350621-ov27k8jd0ki944rc773j4gr8a3l7vfpk.apps.googleusercontent.com';
 const GOOGLE_API_KEY = 'AIzaSyC88moDvAWg7LFeJAgUSxXJV4nhAigSOKU';
 const DRIVE_DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
-const DRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+const DRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email';
 
 const GOOGLE_WAS_CONNECTED_KEY = 'bastcompta_google_was_connected';
 const TOKEN_EXPIRY_SAFETY_MS = 60 * 1000;
@@ -144,6 +144,58 @@ function clearDriveConnectionFlag() {
 
 function wasDrivePreviouslyConnected() {
   return localStorage.getItem(GOOGLE_WAS_CONNECTED_KEY) === '1';
+}
+
+async function getGoogleDriveEmail(accessToken) {
+  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: {
+      Authorization: 'Bearer ' + accessToken
+    }
+  });
+
+  if (!res.ok) {
+    throw new Error('Impossible de vérifier le compte Google Drive.');
+  }
+
+  const profile = await res.json();
+  return normalizeEmail(profile.email);
+}
+
+async function validateDriveAccountForCurrentUser(accessToken) {
+  const user = auth.currentUser;
+  if (!user?.uid) {
+    throw new Error('Utilisateur BastCompta non connecté.');
+  }
+
+  const driveEmail = await getGoogleDriveEmail(accessToken);
+  if (!driveEmail) {
+    throw new Error('Adresse email Google Drive introuvable.');
+  }
+
+  const userRef = doc(db, 'users', user.uid);
+  const snap = await getDoc(userRef);
+  const data = snap.exists() ? snap.data() : {};
+
+  const savedDriveEmail = normalizeEmail(data.driveEmail);
+
+  if (!savedDriveEmail) {
+    await setDoc(userRef, {
+      driveEmail,
+      driveLinkedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    return driveEmail;
+  }
+
+  if (savedDriveEmail !== driveEmail) {
+    disconnectGoogleDrive(true);
+    throw new Error(
+      'Ce compte BastCompta est déjà lié au Google Drive : ' + savedDriveEmail
+    );
+  }
+
+  return driveEmail;
 }
 
 function updateDriveButtons() {
@@ -1389,15 +1441,25 @@ async function initGoogleDrive() {
       client_id: GOOGLE_CLIENT_ID,
       scope: DRIVE_SCOPES,
       prompt: '',
-      callback: tokenResponse => {
+      callback: async tokenResponse => {
         googleRequestInFlight = null;
-        if (tokenResponse?.access_token) {
-          googleAccessToken = tokenResponse.access_token;
-          googleTokenExpiresAt = Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
-          gapi.client.setToken({ access_token: googleAccessToken });
-          markDriveConnected();
-          updateDriveButtons();
-          broadcastDriveConnected();
+
+        try {
+          if (tokenResponse?.access_token) {
+            googleAccessToken = tokenResponse.access_token;
+            googleTokenExpiresAt = Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
+
+            await validateDriveAccountForCurrentUser(googleAccessToken);
+
+            gapi.client.setToken({ access_token: googleAccessToken });
+            markDriveConnected();
+            updateDriveButtons();
+            broadcastDriveConnected();
+          }
+        } catch (error) {
+          console.error(error);
+          disconnectGoogleDrive(true);
+          setMessage(error.message || 'Compte Google Drive refusé.', 'error');
         }
       },
       error_callback: error => {
@@ -1429,16 +1491,48 @@ async function ensureGoogleAccessToken(interactive = true) {
       googleRequestInFlight = null;
 
       if (tokenResponse?.access_token) {
+
         googleAccessToken = tokenResponse.access_token;
-        googleTokenExpiresAt = Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
-        gapi.client.setToken({ access_token: googleAccessToken });
-        markDriveConnected();
-        updateDriveButtons();
-        broadcastDriveConnected();
-        resolve(googleAccessToken);
+
+        googleTokenExpiresAt =
+          Date.now() + (Number(tokenResponse.expires_in || 3600) * 1000);
+
+        validateDriveAccountForCurrentUser(googleAccessToken)
+
+          .then(() => {
+
+            gapi.client.setToken({
+              access_token: googleAccessToken
+            });
+
+            markDriveConnected();
+
+            updateDriveButtons();
+
+            broadcastDriveConnected();
+
+            resolve(googleAccessToken);
+
+          })
+
+          .catch(error => {
+
+            console.error(error);
+
+            disconnectGoogleDrive(true);
+
+            updateDriveButtons();
+
+            reject(error);
+
+          });
+
       } else {
+
         updateDriveButtons();
+
         reject(new Error('Autorisation Google Drive refusée.'));
+
       }
     };
 
