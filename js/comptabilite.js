@@ -2588,7 +2588,6 @@ function renderSales() {
 
 function renderPurchases() {
   const t = totals();
-  const chantierProjects = getChantierProjectsForPurchaseSelect();
   return `
     <section class="page ${activePage === 'purchases' ? 'active' : ''}">
       <div class="card">
@@ -2598,7 +2597,7 @@ function renderPurchases() {
             <div class="hint">Chaque ligne garde le montant HTVA, le taux, le caractère déductible de la TVA et le PDF de la facture si disponible.</div>
           </div>
           <div class="inline-actions">
-            <button class="primary" onclick="addRow('purchases', { date: '', supplier: '', invoiceNumber: '', rate: 21, htva: 0, category: 'frais_generaux', deductible: true, chantierClientName: '', chantierSiteName: '', pdfFileId: '', pdfFileName: '' })">Ajouter un achat</button>
+            <button class="primary" onclick="addRow('purchases', { date: '', supplier: '', invoiceNumber: '', rate: 21, htva: 0, category: 'frais_generaux', deductible: true, pdfFileId: '', pdfFileName: '' })">Ajouter un achat</button>
             <button type="button" onclick="loadPurchasePdfDriveFiles(true).then(() => render())">Actualiser les PDF</button>
           </div>
         </div>
@@ -2615,7 +2614,6 @@ function renderPurchases() {
               <col style="width: 90px;">
               <col style="width: 90px;">
               <col style="width: 90px;">
-              <col style="width: 220px;">
               <col style="width: 180px;">
               <col style="width: 75px;">
             </colgroup>
@@ -2663,19 +2661,12 @@ function renderPurchases() {
                   <td>${money(row.deductible ? purchaseVatDisplay(i) : 0)}</td>
                   <td>${money(rowHtvaToTvac(row.htva, row.rate))}</td>
                   <td>
-                    <select ${lockAttr} onchange="setPurchaseChantierFromSelect(${i}, this.value)">
-                      <option value="">— Aucun chantier —</option>
-                      ${chantierProjects.map(project => `<option value="${escapeAttr(project.id || '')}" ${String(row.chantierId || '') === String(project.id || '') ? 'selected' : ''}>${escapeHtml(makeChantierPurchaseLabel(project))}</option>`).join('')}
-                    </select>
-                    <input placeholder="Nom chantier manuel" value="${escapeAttr(row.chantierSiteName || '')}" ${lockAttr} onchange="row.chantierId=''; updateAccountingRowField('purchases', ${i}, 'chantierSiteName', this.value)" style="margin-top:6px;">
-                  </td>
-                  <td>
                     <div class="inline-actions">
                       <button type="button" ${locked ? 'disabled' : ''} onclick="pickPurchasePdf(${i})">Ajouter</button>
                       ${linkedPdf ? `<button type="button" onclick='openPurchasePdf(${JSON.stringify(linkedPdf.id)})'>Voir</button>` : '<span class="hint">—</span>'}
                     </div>
                   </td>
-                  <td><button class="danger" ${locked ? 'disabled' : ''} onclick="deleteAccountingRow('purchases', ${i})">Suppr.</button></td>
+                  <td><button class="delete-icon-btn" title="Supprimer" aria-label="Supprimer" ${locked ? 'disabled' : ''} onclick="deleteAccountingRow('purchases', ${i})">×</button></td>
                 </tr>
               `}).join('')}
             </tbody>
