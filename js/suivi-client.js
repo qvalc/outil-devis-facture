@@ -277,23 +277,25 @@ function mergeCrmClientLists(...lists) {
     if (!key || key === 'name:') return;
     const previous = map.get(key) || {};
     map.set(key, {
-      ...client,
       ...previous,
-      id: previous.id || client.id,
-      name: previous.name || client.name,
-      clientName: previous.clientName || client.clientName || client.name,
-      clientNumber: previous.clientNumber || client.clientNumber,
-      clientRef: previous.clientRef || client.clientRef || client.clientNumber,
-      email: previous.email || client.email,
-      clientEmail: previous.clientEmail || client.clientEmail || client.email,
-      address: previous.address || client.address,
-      vat: previous.vat || client.vat,
-      clientVat: previous.clientVat || client.clientVat || client.vat,
-      phone: previous.phone || client.phone,
-      contact: previous.contact || client.contact,
-      notes: previous.notes || client.notes,
-      favorite: !!(previous.favorite || client.favorite),
-      source: previous.source || client.source || 'CRM'
+      ...client,
+      id: client.id || previous.id,
+      name: client.name || previous.name,
+      clientName: client.clientName || client.name || previous.clientName,
+      clientNumber: client.clientNumber || previous.clientNumber,
+      clientRef: client.clientRef || client.clientNumber || previous.clientRef,
+      email: client.email || previous.email,
+      clientEmail: client.clientEmail || client.email || previous.clientEmail,
+      address: client.address || previous.address,
+      vat: client.vat || previous.vat,
+      clientVat: client.clientVat || client.vat || previous.clientVat,
+      phone: client.phone || previous.phone,
+      contact: client.contact || previous.contact,
+      notes: client.notes || previous.notes,
+      favorite: !!(client.favorite || previous.favorite),
+      source: client.source || previous.source || 'CRM',
+      updatedAt: client.updatedAt || previous.updatedAt,
+      createdAt: previous.createdAt || client.createdAt
     });
   });
   return Array.from(map.values()).sort((a, b) => {
