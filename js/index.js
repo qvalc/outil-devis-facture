@@ -31,7 +31,7 @@ const firebaseConfig = {
   appId: "1:724620573737:web:b44e0d3f8b1cbf382b3038"
 };
 
-const GOOGLE_CLIENT_ID = '533118350621-ov27k8jd0ki944rc773j4gr8a3l7vfpk.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '724620573737-7o7bc9rn9r97r8fhqsfvlcl9dtaa7d7c.apps.googleusercontent.com';
 const GOOGLE_API_KEY = 'AIzaSyC88moDvAWg7LFeJAgUSxXJV4nhAigSOKU';
 const DRIVE_DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
 const DRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email';
