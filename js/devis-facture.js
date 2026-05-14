@@ -4165,4 +4165,12 @@ window.BastComptaModule = {
 window.addEventListener('load', async () => {
   render();
   await initDriveClientOnly();
+
+  try {
+    window.parent.postMessage({
+      type: 'BASTCOMPTA_DRIVE_STATUS_REQUEST'
+    }, window.location.origin);
+  } catch (error) {
+    console.error('Impossible de demander le statut Drive au portail.', error);
+  }
 });
