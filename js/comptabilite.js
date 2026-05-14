@@ -3869,14 +3869,11 @@ window.addEventListener('load', async () => {
   render();
   await initDriveClientOnly();
 
-  if (googleAccessToken && window.gapi?.client) {
-    try {
-      await loadSyncDataFromDriveIfAvailable();
-      await loadDriveFiles();
-      await loadPurchasePdfDriveFiles(false);
-      render();
-    } catch (error) {
-      console.error(error);
-    }
+  try {
+    window.parent.postMessage({
+      type: 'BASTCOMPTA_DRIVE_STATUS_REQUEST'
+    }, window.location.origin);
+  } catch (error) {
+    console.error('Impossible de demander le statut Drive au portail.', error);
   }
 });
