@@ -1590,21 +1590,40 @@ async function deleteCrmLinkedDocument(type, itemId) {
   const project = getProject();
   const item = getLinkedDocumentItem(type, itemId);
   if (!project || !item) return notify('Document introuvable dans la fiche client.');
+
   const listName = type === 'quote' ? 'linkedQuotes' : type === 'invoice' ? 'linkedInvoices' : 'linkedReminders';
   const hasDriveFile = !!item.fileId;
+
   const message = hasDriveFile
-    ? `Supprimer le fichier Drive ${item.fileName || item.ref} et le retirer de cette fiche client ?`
+    ? `Supprimer/retirer ${item.fileName || item.ref || 'ce document'} de cette fiche client ?`
     : `Retirer ${moneyTypeLabel(type)} ${item.ref || ''} de cette fiche client ?`;
+
   if (!confirm(message)) return;
+
   if (hasDriveFile && googleAccessToken) {
-    const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${item.fileId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${googleAccessToken}` }
-    }, false);
-    if (!res || !res.ok) return notify('Suppression Drive impossible. Le document n’a pas été retiré.');
+    try {
+      const res = await googleDriveFetch(`https://www.googleapis.com/drive/v3/files/${item.fileId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${googleAccessToken}` }
+      }, false);
+
+      if (res && !res.ok && res.status !== 404) {
+        console.warn('Suppression Drive impossible, retrait local quand même.');
+      }
+    } catch (err) {
+      console.warn('Fichier Drive déjà absent ou suppression impossible, retrait local quand même.', err);
+    }
   }
-  project[listName] = (project[listName] || []).filter(row => String(row.id || '') !== String(item.id || '') && String(row.ref || '') !== String(item.ref || ''));
-  addTimeline(project, `${moneyTypeLabel(type)} ${item.ref || ''} supprimé/retiré de la fiche client.`);
+
+  project[listName] = (project[listName] || []).filter(row =>
+    String(row.id || '') !== String(item.id || '') &&
+    String(row.ref || '') !== String(item.ref || '') &&
+    String(row.fileId || '') !== String(item.fileId || '')
+  );
+
+  project.updatedAt = new Date().toISOString();
+  addTimeline(project, `${moneyTypeLabel(type)} ${item.ref || ''} retiré de la fiche client.`);
+
   await saveData(false);
   renderMain();
   notify('Document retiré de la fiche client.');
