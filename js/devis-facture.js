@@ -4257,3 +4257,19 @@ window.addEventListener('load', async () => {
     console.error('Impossible de demander le statut Drive au portail.', error);
   }
 });
+
+window.addEventListener('focus', async () => {
+  try {
+
+    if (googleAccessToken && window.gapi?.client) {
+      await loadSyncDataFromDriveIfAvailable();
+    } else {
+      data = loadData();
+    }
+
+    render();
+
+  } catch (err) {
+    console.error('Erreur rafraîchissement CRM Devis & Facture :', err);
+  }
+});
