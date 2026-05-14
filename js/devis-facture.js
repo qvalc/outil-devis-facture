@@ -49,13 +49,94 @@ async function handleGoogleDriveException(error, showAlert = true) {
   return handleGoogleDriveAuthError(status, showAlert);
 }
 
+function unescapeDriveQueryLiteral(value) {
+  return String(value || '').replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+}
+
+function localDriveQueryMatch(file = {}, q = '') {
+  const query = String(q || '');
+  if (!query) return true;
+
+  if (/trashed\s*=\s*false/i.test(query) && file.trashed === true) return false;
+
+  const mimeMatch = query.match(/mimeType\s*=\s*'((?:\\'|[^'])*)'/i);
+  if (mimeMatch && String(file.mimeType || '') !== unescapeDriveQueryLiteral(mimeMatch[1])) return false;
+
+  const exactNameMatch = query.match(/name\s*=\s*'((?:\\'|[^'])*)'/i);
+  if (exactNameMatch) {
+    return String(file.name || '') === unescapeDriveQueryLiteral(exactNameMatch[1]);
+  }
+
+  const containsMatches = Array.from(query.matchAll(/name\s+contains\s+'((?:\\'|[^'])*)'/gi))
+    .map(match => unescapeDriveQueryLiteral(match[1]))
+    .filter(Boolean);
+
+  if (containsMatches.length) {
+    const name = String(file.name || '').toLowerCase();
+    const values = containsMatches.map(value => String(value).toLowerCase());
+    const usesOr = /\bor\b/i.test(query);
+    const ok = usesOr
+      ? values.some(value => name.includes(value))
+      : values.every(value => name.includes(value));
+    if (!ok) return false;
+  }
+
+  return true;
+}
+
+async function listDriveFilesDirect(params = {}) {
+  if (!googleAccessToken) throw new Error('Google Drive non connecté.');
+
+  const files = [];
+  let pageToken = '';
+
+  do {
+    const searchParams = new URLSearchParams();
+    searchParams.set('spaces', params.spaces || 'appDataFolder');
+    searchParams.set('pageSize', String(params.pageSize || 100));
+    searchParams.set('fields', params.fields || 'nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,trashed)');
+    if (params.orderBy) searchParams.set('orderBy', params.orderBy);
+    if (params.q) searchParams.set('q', params.q);
+    if (pageToken) searchParams.set('pageToken', pageToken);
+
+    const response = await fetch('https://www.googleapis.com/drive/v3/files?' + searchParams.toString(), {
+      headers: { Authorization: `Bearer ${googleAccessToken}` }
+    });
+
+    if (!response.ok) {
+      const error = new Error(await response.text());
+      error.status = response.status;
+      throw error;
+    }
+
+    const payload = await response.json();
+    files.push(...(payload.files || []));
+    pageToken = payload.nextPageToken || '';
+  } while (pageToken);
+
+  return { result: { files } };
+}
+
 async function driveFilesList(params, showAlert401 = true) {
   try {
-    return await gapi.client.drive.files.list(params);
+    return await listDriveFilesDirect(params);
   } catch (error) {
     if (await handleGoogleDriveException(error, showAlert401)) {
       return null;
     }
+
+    if (error?.status === 400 && params?.q) {
+      console.warn('Requête Drive filtrée refusée, repli sur liste complète appDataFolder.', params.q, error);
+      const fallback = await listDriveFilesDirect({
+        spaces: params.spaces || 'appDataFolder',
+        pageSize: params.pageSize || 100,
+        orderBy: params.orderBy,
+        fields: 'nextPageToken,files(id,name,mimeType,size,createdTime,modifiedTime,trashed)'
+      });
+      fallback.result.files = (fallback.result.files || []).filter(file => localDriveQueryMatch(file, params.q));
+      return fallback;
+    }
+
     throw error;
   }
 }
@@ -427,7 +508,7 @@ async function loadDriveFiles(showAlert = true) {
   try {
     const list = await driveFilesList({
       spaces: 'appDataFolder',
-      q: `mimeType='application/json' and trashed=false and (name contains 'devis-' or name contains 'facture-' or name contains 'rappel-' or name contains 'NC-')`,
+      q: `mimeType='application/json' and trashed=false`,
       orderBy: 'modifiedTime desc',
       pageSize: 100,
       fields: 'files(id, name, modifiedTime)'
@@ -437,7 +518,9 @@ async function loadDriveFiles(showAlert = true) {
 
     googleDriveFiles = (list.result.files || []).filter(file => {
       const hiddenSyncNames = ['bastcompta-devis-facture-sync.json', DRIVE_SYNC_FILE_NAME];
-      return !hiddenSyncNames.includes(String(file.name || ''));
+      const name = String(file.name || '');
+      return !hiddenSyncNames.includes(name)
+        && (name.includes('devis-') || name.includes('facture-') || name.includes('rappel-') || name.includes('NC-'));
     });
     const validIds = new Set(googleDriveFiles.map(file => file.id));
     selectedDriveFileIds = selectedDriveFileIds.filter(id => validIds.has(id));
@@ -619,7 +702,7 @@ async function uploadLocalJsonToDrive(event) {
 
       const existing = await driveFilesList({
         spaces: 'appDataFolder',
-        q: `name='${file.name.replace(/'/g, "\'")}' and trashed=false`,
+        q: `name='${escapeDriveQueryValue(file.name)}' and trashed=false`,
         fields: 'files(id, name)'
       });
 
@@ -1495,7 +1578,7 @@ async function saveSyncToDrive(showErrorAlert = false) {
 
     const existing = await driveFilesList({
       spaces: 'appDataFolder',
-      q: `name='${fileName.replace(/'/g, "\'")}' and trashed=false`,
+      q: `name='${escapeDriveQueryValue(fileName)}' and trashed=false`,
       fields: 'files(id, name)'
     });
 
@@ -1550,7 +1633,7 @@ async function loadSyncDataFromDriveIfAvailable() {
     const fileName = getSyncDriveFileName();
     const list = await driveFilesList({
       spaces: 'appDataFolder',
-      q: `name='${fileName.replace(/'/g, "\'")}' and trashed=false`,
+      q: `name='${escapeDriveQueryValue(fileName)}' and trashed=false`,
       orderBy: 'modifiedTime desc',
       pageSize: 1,
       fields: 'files(id, name, modifiedTime)'
@@ -1600,7 +1683,7 @@ async function downloadHiddenCrmSyncFromDrive() {
     const fileName = getSyncDriveFileName();
     const list = await driveFilesList({
       spaces: 'appDataFolder',
-      q: `name='${fileName.replace(/'/g, "\'")}' and trashed=false`,
+      q: `name='${escapeDriveQueryValue(fileName)}' and trashed=false`,
       orderBy: 'modifiedTime desc',
       pageSize: 1,
       fields: 'files(id, name, modifiedTime)'
@@ -2293,7 +2376,7 @@ async function exportDocTypeToDrive(docKey, showAlert = true) {
 
     const existing = await driveFilesList({
       spaces: 'appDataFolder',
-      q: `name='${fileName.replace(/'/g, "\\'")}' and trashed=false`,
+      q: `name='${escapeDriveQueryValue(fileName)}' and trashed=false`,
       fields: 'files(id, name)'
     });
 
@@ -2829,7 +2912,7 @@ function copyCommunication() {
 }
 
 function escapeDriveQueryValue(value) {
-  return String(value || '').replace(/'/g, "\'");
+  return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 function normalizeInvoiceLookupValue(value) {
