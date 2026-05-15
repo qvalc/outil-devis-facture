@@ -90,15 +90,15 @@ function clientGlobalKey(project) {
   const clientName = String(project?.clientName || project?.title || '').trim();
   if (clientId) return 'id:' + clientId;
   if (clientRef) return 'ref:' + normalizeLinkKey(clientRef);
-  return 'name:' + normalizeLinkKey(clientName);
+  return 'project:' + (project.id || crypto.randomUUID());
 }
 
 function dedupeMoneyList(list) {
   const byKey = new Map();
   (Array.isArray(list) ? list : []).forEach(item => {
-    const key = String(item.documentUid || item.id || item.ref || '').trim();
+    const key = String(item.documentUid || item.driveFileId || item.id || '').trim();
     if (!key) return;
-    byKey.set(key, Object.assign({}, byKey.get(key) || {}, item, { documentUid: item.documentUid || item.id || key }));
+    byKey.set(key, Object.assign({}, byKey.get(key) || {}, item, { documentUid: item.documentUid || item.driveFileId || item.id || crypto.randomUUID() }));
   });
   return Array.from(byKey.values()).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 }
@@ -1086,9 +1086,22 @@ function renderMoneyTable(items, type) {
 function getLinkedDocumentItem(type, itemId) {
   const project = getProject();
   if (!project) return null;
-  const listName = type === 'quote' ? 'linkedQuotes' : type === 'invoice' ? 'linkedInvoices' : type === 'reminder' ? 'linkedReminders' : '';
+
+  const listName = type === 'quote'
+    ? 'linkedQuotes'
+    : type === 'invoice'
+      ? 'linkedInvoices'
+      : type === 'reminder'
+        ? 'linkedReminders'
+        : '';
+
   const list = listName ? (project[listName] || []) : [];
-  return list.find(item => String(item.id || '') === String(itemId) || String(item.documentUid || '') === String(itemId) || String(item.ref || '') === String(itemId)) || null;
+
+  return list.find(item =>
+    String(item.id || '') === String(itemId) ||
+    String(item.documentUid || '') === String(itemId) ||
+    String(item.fileId || '') === String(itemId)
+  ) || null;
 }
 
 function buildSingleDocumentPayloadFromCurrentData(docKey) {
@@ -1615,10 +1628,10 @@ async function deleteCrmLinkedDocument(type, itemId) {
     }
   }
 
+  const removeKey = String(item.documentUid || item.fileId || item.id || '').trim();
+
   project[listName] = (project[listName] || []).filter(row =>
-    String(row.id || '') !== String(item.id || '') &&
-    String(row.ref || '') !== String(item.ref || '') &&
-    String(row.fileId || '') !== String(item.fileId || '')
+    String(row.documentUid || row.fileId || row.id || '').trim() !== removeKey
   );
 
   project.updatedAt = new Date().toISOString();
@@ -1892,13 +1905,12 @@ function documentTotals(doc) {
 function clientMatchesProject(project, doc) {
   const projectClientId = String(project.clientId || '').trim();
   const projectRef = String(project.clientRef || '').trim();
-  const projectName = normalizeLinkKey(project.clientName || '');
+
   const docClientId = String(doc.clientId || '').trim();
   const docRef = String(doc.clientNumber || doc.clientRef || '').trim();
-  const docName = normalizeLinkKey(doc.clientName || '');
+
   return (!!projectClientId && projectClientId === docClientId)
-    || (!!projectRef && projectRef === docRef)
-    || (!!projectName && projectName === docName);
+    || (!!projectRef && projectRef === docRef);
 }
 
 function buildCrmDocEntry(docKey, doc, source, fileMeta = {}) {
@@ -2020,17 +2032,44 @@ let crmDocumentLinkCache = [];
 
 function dedupeCrmDocs(docs) {
   const seen = new Set();
+
   return docs.filter(doc => {
-    const key = `${doc.key}:${doc.ref}`;
+    const key = String(
+      doc.uniqueKey ||
+      doc.documentUid ||
+      doc.fileId ||
+      `${doc.key}:${doc.ref}:${doc.source || ''}:${doc.fileName || ''}`
+    ).trim();
+
+    if (!key) return false;
     if (seen.has(key)) return false;
+
     seen.add(key);
     return true;
-  }).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || a.label.localeCompare(b.label));
+  }).sort((a, b) =>
+    String(b.date || '').localeCompare(String(a.date || '')) ||
+    String(a.label || '').localeCompare(String(b.label || ''))
+  );
 }
 
 function isMoneyLinked(project, type, ref) {
-  const list = type === 'quote' ? project.linkedQuotes : type === 'invoice' ? project.linkedInvoices : (project.linkedReminders || []);
-  return (list || []).some(item => String(item.ref || '') === String(ref));
+  const list = type === 'quote'
+    ? project.linkedQuotes
+    : type === 'invoice'
+      ? project.linkedInvoices
+      : (project.linkedReminders || []);
+
+  const doc = (crmDocumentLinkCache || []).find(item =>
+    item.key === type && String(item.ref || '') === String(ref || '')
+  );
+
+  const key = String(doc?.documentUid || doc?.fileId || doc?.id || '').trim();
+
+  return (list || []).some(item =>
+    key
+      ? String(item.documentUid || item.fileId || item.id || '').trim() === key
+      : String(item.ref || '').trim() === String(ref || '').trim()
+  );
 }
 
 async function toggleCrmDocumentLink(type, ref, checked) {
@@ -2070,10 +2109,9 @@ async function toggleCrmDocumentLink(type, ref, checked) {
       clientRef: doc.clientRef,
       siteName: project.title
     };
-    const stableKey = String(payload.documentUid || payload.id || payload.ref || '').trim();
+    const stableKey = String(payload.documentUid || payload.fileId || payload.id || crypto.randomUUID()).trim();
     const existing = project[listName].find(item =>
-      (stableKey && String(item.documentUid || item.id || '').trim() === stableKey)
-      || String(item.ref || '').trim() === String(doc.ref || '').trim()
+      stableKey && String(item.documentUid || item.fileId || item.id || '').trim() === stableKey
     );
     if (existing) Object.assign(existing, payload, { documentUid: stableKey });
     else project[listName].push(Object.assign(payload, { documentUid: stableKey }));
@@ -2082,7 +2120,9 @@ async function toggleCrmDocumentLink(type, ref, checked) {
     project.clientRef = project.clientRef || doc.clientRef || '';
     addTimeline(project, `${doc.description} lié au client.`);
   } else {
-    project[listName] = project[listName].filter(item => String(item.ref || '') !== String(doc.ref));
+    project[listName] = project[listName].filter(item =>
+      String(item.documentUid || item.fileId || item.id || '') !== String(doc.documentUid || doc.fileId || doc.id || '')
+    );
     addTimeline(project, `${doc.description} retiré du client.`);
   }
   project.updatedAt = new Date().toISOString();
@@ -2172,8 +2212,20 @@ async function previewCrmDocumentFromCache(type, ref) {
   if (project) {
     const listName = doc.list;
     if (!Array.isArray(project[listName])) project[listName] = [];
-    const existing = project[listName].find(item => String(item.ref || '') === String(doc.ref || ''));
-    if (!existing) project[listName].push({ ...doc, id: pseudoId, documentUid: pseudoId, amount: doc.clientHtva || doc.htva || 0 });
+    const stableKey = String(doc.documentUid || doc.fileId || pseudoId).trim();
+
+    const existing = project[listName].find(item =>
+      String(item.documentUid || item.fileId || item.id || '').trim() === stableKey
+    );
+
+    if (!existing) {
+      project[listName].push({
+        ...doc,
+        id: pseudoId,
+        documentUid: stableKey,
+        amount: doc.clientHtva || doc.htva || 0
+      });
+    }
   }
   return previewCrmLinkedDocument(type, pseudoId);
 }
@@ -2205,7 +2257,11 @@ async function deleteCrmDocumentFromCache(type, ref) {
   const project = getProject();
   if (project) {
     const listName = doc.list;
-    project[listName] = (project[listName] || []).filter(item => item.fileId !== doc.fileId && String(item.ref || '') !== String(doc.ref || ''));
+    const removeKey = String(doc.documentUid || doc.fileId || doc.id || '').trim();
+
+    project[listName] = (project[listName] || []).filter(item =>
+      String(item.documentUid || item.fileId || item.id || '').trim() !== removeKey
+    );
     await saveData(false);
   }
   renderCrmDocumentLinkModal();
