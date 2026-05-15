@@ -95,12 +95,38 @@ function clientGlobalKey(project) {
 
 function dedupeMoneyList(list) {
   const byKey = new Map();
+
   (Array.isArray(list) ? list : []).forEach(item => {
-    const key = String(item.documentUid || item.driveFileId || item.id || '').trim();
+    const key = String(
+      item.documentUid ||
+      item.fileId ||
+      item.driveFileId ||
+      item.id ||
+      ''
+    ).trim();
+
     if (!key) return;
-    byKey.set(key, Object.assign({}, byKey.get(key) || {}, item, { documentUid: item.documentUid || item.driveFileId || item.id || crypto.randomUUID() }));
+
+    byKey.set(
+      key,
+      Object.assign(
+        {},
+        byKey.get(key) || {},
+        item,
+        {
+          documentUid:
+            item.documentUid ||
+            item.fileId ||
+            item.driveFileId ||
+            item.id ||
+            key
+        }
+      )
+    );
   });
-  return Array.from(byKey.values()).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+
+  return Array.from(byKey.values())
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 }
 
 function mergeProjectsByClient(projects) {
@@ -2115,6 +2141,9 @@ async function toggleCrmDocumentLink(type, ref, checked) {
     );
     if (existing) Object.assign(existing, payload, { documentUid: stableKey });
     else project[listName].push(Object.assign(payload, { documentUid: stableKey }));
+
+    project[listName] = dedupeMoneyList(project[listName]);
+
     project.clientId = project.clientId || doc.clientId || '';
     project.clientName = project.clientName || doc.clientName || '';
     project.clientRef = project.clientRef || doc.clientRef || '';
