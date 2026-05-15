@@ -233,3 +233,31 @@
     // Les écritures sont déjà lancées à chaque setItem ; ce hook sert surtout de point d'extension.
   });
 })();
+
+// Détection modifications depuis un autre onglet
+window.addEventListener('storage', function (event) {
+
+  if (!event.key) return;
+
+  const watchedKeys = [
+    'bast_compta',
+    'bastcrm',
+    'crm',
+    'clients',
+    'devis',
+    'factures',
+    'suivi'
+  ];
+
+  const changed = watchedKeys.some(k =>
+    String(event.key).toLowerCase().includes(k)
+  );
+
+  if (!changed) return;
+
+  console.warn('Données modifiées dans un autre onglet :', event.key);
+
+  alert(
+    "Attention : des données ont été modifiées dans un autre onglet.\n\nRechargez la page avant de continuer pour éviter les doublons ou pertes de données."
+  );
+});
