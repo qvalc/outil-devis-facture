@@ -1282,169 +1282,6 @@ body.backup-pdf-capture .sheet {
 
 
 /* ================================
-   Correctif responsive mobile Devis & Facture
-   ================================ */
-@media (max-width: 768px) {
-    body {
-        overflow-x: hidden;
-    }
-
-    .app {
-        max-width: none;
-        width: 100%;
-        padding: 12px;
-    }
-
-    .topbar {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 10px;
-        margin-bottom: 12px;
-    }
-
-    .title-wrap h1 {
-        font-size: 26px;
-        line-height: 1.15;
-    }
-
-    .actions {
-        width: 100%;
-        justify-content: stretch;
-    }
-
-    .actions button,
-    .actions .file-label {
-        width: 100%;
-    }
-
-    .tabs {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        gap: 22px;
-        padding: 0 0 10px;
-        margin-bottom: 14px;
-        scrollbar-width: thin;
-    }
-
-    .tab {
-        flex: 0 0 auto;
-        white-space: nowrap;
-        font-size: 14px;
-    }
-
-    .toolbar {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 12px;
-        padding: 12px;
-        border-radius: 16px;
-    }
-
-    .toolbar-meta,
-    .toolbar-actions,
-    .toolbar-group {
-        width: 100%;
-        min-width: 0;
-    }
-
-    .toolbar-actions,
-    .toolbar-group {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 8px;
-        margin-left: 0;
-    }
-
-    .toolbar button,
-    .toolbar .split-button,
-    .toolbar .toolbar-menu {
-        width: 100%;
-    }
-
-    .split-button {
-        display: grid;
-        grid-template-columns: 1fr 44px;
-    }
-
-    .menu-panel {
-        left: 0;
-        right: auto;
-        width: 100%;
-        min-width: 0;
-    }
-
-    .sheet,
-    .comm-panel,
-    .conditions-screen {
-        padding: 14px;
-        border-radius: 16px;
-    }
-
-    .doc-head,
-    .bottom,
-    .comm-grid,
-    .comm-meta,
-    .settings-grid,
-    .crm-drive-grid,
-    .peppol-grid,
-    .peppol-summary-grid {
-        grid-template-columns: 1fr !important;
-        gap: 14px;
-    }
-
-    .seller {
-        margin-top: 0;
-        align-items: flex-start;
-    }
-
-    .company-logo-wrap {
-        margin: 0;
-    }
-
-    .company-logo {
-        max-width: 80px;
-        max-height: 80px;
-    }
-
-    .doc-title-top {
-        font-size: 26px;
-        margin-bottom: 10px;
-    }
-
-    .client-box,
-    .pay-block,
-    .notes-block {
-        border-radius: 14px;
-    }
-
-    .meta-table-wrap,
-    .doc-table-wrap {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .meta-table,
-    .doc-table {
-        min-width: 900px;
-    }
-
-    .line-add-actions {
-        justify-content: stretch;
-        margin: 8px 0 14px;
-    }
-
-    .line-add-button {
-        width: 100%;
-    }
-
-    input,
-    textarea,
-    select {
-        font-size: 16px;
-    }
-}
-
-/* ================================
    Correctif impression PDF Chrome
    ================================ */
 @media print {
@@ -1475,12 +1312,16 @@ body.backup-pdf-capture .sheet {
         width: 100% !important;
         min-width: 0 !important;
         table-layout: fixed !important;
+        font-size: 9px !important;
     }
 
     .doc-table th,
     .doc-table td {
         overflow: visible !important;
         word-break: break-word !important;
+        font-size: 9px !important;
+        padding: 4px 4px !important;
+        vertical-align: top !important;
     }
 
     .doc-table textarea,
@@ -1490,14 +1331,64 @@ body.backup-pdf-capture .sheet {
         overflow: visible !important;
         white-space: pre-wrap !important;
         height: auto !important;
+        font-size: 9px !important;
+        line-height: 1.15 !important;
     }
 
     textarea::-webkit-scrollbar {
         display: none !important;
     }
 
+    .doc-table th:first-child,
     .doc-table td:first-child {
-        width: auto !important;
+        width: 34% !important;
+    }
+
+    .doc-table th:nth-child(2),
+    .doc-table td:nth-child(2) {
+        width: 10% !important;
+    }
+
+    .doc-table th:nth-child(3),
+    .doc-table td:nth-child(3) {
+        width: 8% !important;
+    }
+
+    .doc-table th:nth-child(4),
+    .doc-table td:nth-child(4) {
+        width: 11% !important;
+    }
+
+    .doc-table th:nth-child(5),
+    .doc-table td:nth-child(5) {
+        width: 10% !important;
+    }
+
+    .doc-table th:nth-child(6),
+    .doc-table td:nth-child(6) {
+        width: 14% !important;
+    }
+
+    .doc-table th:nth-child(7),
+    .doc-table td:nth-child(7) {
+        width: 6% !important;
+        white-space: nowrap !important;
+        text-align: center !important;
+    }
+
+    .doc-table td:first-child textarea {
+        min-height: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
+        white-space: pre-wrap !important;
+        word-break: break-word !important;
+        line-height: 1.15 !important;
+    }
+
+    .doc-table select {
+        appearance: none !important;
+        -webkit-appearance: none !important;
+        font-size: 9px !important;
     }
 
     .doc-table th:last-child,
