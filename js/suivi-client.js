@@ -1026,7 +1026,7 @@ function renderFinanceTab(project) {
             <h3 class="section-title">Factures liées</h3>
             <div class="inline-actions">
               <button class="small" onclick="openCrmDocumentLinkModal()">Charger docs client</button>
-              <button class="small primary" onclick="openMoneyModal('invoice')">Ajouter une facture</button>
+              <button class="small primary" onclick="openInvoiceJsonImport()">Ajouter une facture</button>
             </div>
           </div>
           ${renderMoneyTable(project.linkedInvoices, 'invoice')}
@@ -2339,6 +2339,60 @@ async function deleteCrmDocumentFromCache(type, ref) {
   notify('Document supprimé de Google Drive.');
 }
 
+function openInvoiceJsonImport() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.onchange = importInvoiceJsonToCurrentClient;
+  input.click();
+}
+
+async function importInvoiceJsonToCurrentClient(event) {
+  const project = getProject();
+  const file = event.target.files?.[0];
+  if (!project || !file) return;
+
+  try {
+    const parsed = JSON.parse(await file.text());
+    const doc = parsed?.invoice;
+
+    if (!doc || !doc.documentNumber) {
+      notify("Ce fichier n'est pas une facture JSON valide.");
+      return;
+    }
+
+    const entry = buildCrmDocEntry('invoice', doc, 'fichier PC', { name: file.name });
+    if (!entry) {
+      notify("Facture impossible à lire.");
+      return;
+    }
+
+    entry.id = entry.id || `invoice-${entry.ref}-${Date.now()}`;
+    entry.documentUid = entry.fileId || entry.uniqueKey || entry.id;
+    entry.rawDocument = doc;
+
+    if (!Array.isArray(project.linkedInvoices)) project.linkedInvoices = [];
+
+    project.linkedInvoices = project.linkedInvoices.filter(item =>
+      String(item.documentUid || item.fileId || item.id || '').trim() !== String(entry.documentUid || '').trim()
+    );
+
+    project.linkedInvoices.push(entry);
+    project.linkedInvoices = dedupeMoneyList(project.linkedInvoices);
+
+    project.updatedAt = new Date().toISOString();
+    addTimeline(project, `Facture importée : ${entry.ref}`);
+
+    await saveData();
+    renderMain();
+
+    notify(`Facture ${entry.ref} ajoutée au client.`);
+  } catch (error) {
+    console.error(error);
+    notify("Import impossible : fichier JSON invalide.");
+  }
+}
+
 function openMoneyModal(type) {
   const labels = {
     quote: 'Ajouter un devis (hors calcul)',
@@ -2710,10 +2764,17 @@ async function importDataLocal(event) {
   const file = event.target.files?.[0];
   event.target.value = '';
   if (!file) return;
-  if (!confirm('Importer ce fichier remplacera les suivis clients actuels. Continuer ?')) return;
 
   try {
     const parsed = JSON.parse(await file.text());
+
+    if (!parsed.projects && !parsed.crmClients && !parsed.meta) {
+      notify("Ce bouton sert uniquement à importer une sauvegarde complète du suivi client, pas une facture/devis JSON.");
+      return;
+    }
+
+    if (!confirm('Importer ce fichier remplacera les suivis clients actuels. Continuer ?')) return;
+
     data = normalizeData(parsed);
     selectedProjectId = '';
     saveLocalOnly();
