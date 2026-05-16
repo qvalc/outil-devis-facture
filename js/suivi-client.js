@@ -1142,12 +1142,53 @@ function buildSingleDocumentPayloadFromCurrentData(docKey) {
 async function getLinkedDocumentSourcePayload(type, item) {
   const docKey = moneyTypeToDocKey(type);
   if (!docKey || !item) return null;
+
   if (item.fileId && googleAccessToken) {
     const parsed = await fetchDriveJson(item.fileId);
     if (parsed?.[docKey]) return parsed;
   }
+
+  if (!item.fileId && googleAccessToken && item.ref) {
+    const prefix =
+      docKey === 'quote'
+        ? 'devis'
+        : docKey === 'invoice'
+          ? 'facture'
+          : 'rappel';
+
+    const expectedName = `${prefix}-${item.ref}.json`;
+
+    const list = await driveFilesList({
+      spaces: 'appDataFolder',
+      q: `name='${expectedName.replace(/'/g, "\\'")}' and trashed=false`,
+      fields: 'files(id,name,modifiedTime)',
+      pageSize: 10
+    }, false);
+
+    const file = list?.result?.files?.[0];
+
+    if (file?.id) {
+      const parsed = await fetchDriveJson(file.id);
+
+      if (parsed?.[docKey]) {
+        item.fileId = file.id;
+        item.fileName = file.name;
+        item.documentUid = item.documentUid || file.id;
+        saveLocalOnly();
+        return parsed;
+      }
+    }
+  }
+
   const localData = loadDevisFactureData();
-  if (localData?.[docKey] && String(localData[docKey].documentNumber || '') === String(item.ref || '')) return localData;
+
+  if (
+    localData?.[docKey] &&
+    String(localData[docKey].documentNumber || '') === String(item.ref || '')
+  ) {
+    return localData;
+  }
+
   return null;
 }
 
