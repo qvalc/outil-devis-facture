@@ -1034,6 +1034,7 @@ body.backup-pdf-capture .sheet {
     min-height: 320px;
     max-height: 520px;
 }
+
 /* Assistant Conformité & envoi / Peppol */
 .peppol-panel {
     display: grid;
@@ -1230,6 +1231,7 @@ body.backup-pdf-capture .sheet {
 }
 
 @media (max-width: 1100px) {
+
     .peppol-summary-grid,
     .peppol-grid {
         grid-template-columns: 1fr;
@@ -1439,5 +1441,72 @@ body.backup-pdf-capture .sheet {
     textarea,
     select {
         font-size: 16px;
+    }
+}
+
+/* ================================
+   Correctif impression PDF Chrome
+   ================================ */
+@media print {
+
+    html,
+    body {
+        width: 210mm !important;
+        overflow: visible !important;
+        background: #fff !important;
+    }
+
+    .app,
+    .sheet,
+    .comm-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow: visible !important;
+    }
+
+    .doc-table-wrap,
+    .meta-table-wrap {
+        overflow: visible !important;
+        width: 100% !important;
+    }
+
+    .doc-table,
+    .meta-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+    }
+
+    .doc-table th,
+    .doc-table td {
+        overflow: visible !important;
+        word-break: break-word !important;
+    }
+
+    .doc-table textarea,
+    .doc-table input,
+    .meta-table textarea,
+    .meta-table input {
+        overflow: visible !important;
+        white-space: pre-wrap !important;
+        height: auto !important;
+    }
+
+    textarea::-webkit-scrollbar {
+        display: none !important;
+    }
+
+    .doc-table td:first-child {
+        width: auto !important;
+    }
+
+    .doc-table th:last-child,
+    .doc-table td:last-child {
+        display: none !important;
+    }
+
+    @page {
+        size: A4 portrait;
+        margin: 10mm;
     }
 }
