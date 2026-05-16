@@ -1623,8 +1623,12 @@ async function downloadCrmLinkedDocumentPdf(type, itemId) {
 
 
 async function loadCrmLinkedDocumentInDevis(type, itemId) {
+  const project = getProject();
   const item = getLinkedDocumentItem(type, itemId);
-  if (!item) return notify('Document introuvable dans la fiche client.');
+
+  if (!project || !item) {
+    return notify('Document introuvable dans la fiche client.');
+  }
 
   const docKey = moneyTypeToDocKey(type);
   const payload = await getLinkedDocumentSourcePayload(type, item);
@@ -1642,15 +1646,36 @@ async function loadCrmLinkedDocumentInDevis(type, itemId) {
 
   writeFullCrmDataToLocalStorage(current);
 
-  notify(`${moneyTypeLabel(type)} ${item.ref || ''} chargé dans Devis & Facture.`);
+  // Important : si le fileId a été réparé pendant le chargement, on nettoie les doublons.
+  const listName =
+    type === 'quote'
+      ? 'linkedQuotes'
+      : type === 'invoice'
+        ? 'linkedInvoices'
+        : 'linkedReminders';
 
-  const url = `devis-facture.html?open=${encodeURIComponent(docKey)}&ref=${encodeURIComponent(item.ref || '')}`;
-  const win = window.open(url, 'bastcompta_devis_facture');
+  if (Array.isArray(project[listName])) {
+    project[listName] = dedupeMoneyList(project[listName]);
+    saveLocalOnly();
+    renderMain();
+  }
 
-  if (win) {
-    win.focus();
-  } else {
-    notify("Document chargé. Le navigateur a bloqué l'ouverture automatique de Devis & Facture.");
+  try {
+    const targetOrigin =
+      window.location.origin && window.location.origin !== 'null'
+        ? window.location.origin
+        : '*';
+
+    window.parent?.postMessage({
+      type: 'BASTCOMPTA_OPEN_DEVIS_DOCUMENT',
+      docKey,
+      ref: item.ref || ''
+    }, targetOrigin);
+
+    notify(`${moneyTypeLabel(type)} ${item.ref || ''} chargé dans Devis & Facture.`);
+  } catch (error) {
+    console.warn('Ouverture Devis & Facture impossible.', error);
+    notify(`${moneyTypeLabel(type)} ${item.ref || ''} chargé, mais ouverture automatique impossible.`);
   }
 }
 
