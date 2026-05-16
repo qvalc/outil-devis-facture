@@ -1144,11 +1144,15 @@ async function getLinkedDocumentSourcePayload(type, item) {
   if (!docKey || !item) return null;
 
   if (item.fileId && googleAccessToken) {
-    const parsed = await fetchDriveJson(item.fileId);
-    if (parsed?.[docKey]) return parsed;
+    try {
+      const parsed = await fetchDriveJson(item.fileId);
+      if (parsed?.[docKey]) return parsed;
+    } catch (error) {
+      console.warn('FileId Drive invalide, recherche par nom...', item.fileId, error);
+    }
   }
 
-  if (!item.fileId && googleAccessToken && item.ref) {
+  if (googleAccessToken && item.ref) {
     const prefix =
       docKey === 'quote'
         ? 'devis'
@@ -1173,7 +1177,7 @@ async function getLinkedDocumentSourcePayload(type, item) {
       if (parsed?.[docKey]) {
         item.fileId = file.id;
         item.fileName = file.name;
-        item.documentUid = item.documentUid || file.id;
+        item.documentUid = file.id;
         saveLocalOnly();
         return parsed;
       }
@@ -1621,22 +1625,33 @@ async function downloadCrmLinkedDocumentPdf(type, itemId) {
 async function loadCrmLinkedDocumentInDevis(type, itemId) {
   const item = getLinkedDocumentItem(type, itemId);
   if (!item) return notify('Document introuvable dans la fiche client.');
+
   const docKey = moneyTypeToDocKey(type);
   const payload = await getLinkedDocumentSourcePayload(type, item);
-  if (!payload?.[docKey]) return notify('Impossible de charger ce document : fichier source introuvable.');
+
+  if (!payload?.[docKey]) {
+    return notify('Impossible de charger ce document : fichier source introuvable.');
+  }
+
   const current = readFullCrmDataFromLocalStorage();
   current[docKey] = payload[docKey];
+
   if (Array.isArray(payload.clients) && payload.clients.length) current.clients = payload.clients;
   if (payload.company) current.company = payload.company;
   if (payload.mail) current.mail = payload.mail;
+
   writeFullCrmDataToLocalStorage(current);
-  try {
-    const targetOrigin = window.location.origin && window.location.origin !== 'null' ? window.location.origin : '*';
-    window.parent?.postMessage({ type: 'BASTCOMPTA_OPEN_DEVIS_DOCUMENT', docKey }, targetOrigin);
-  } catch (error) {
-    console.warn('Ouverture Devis & Facture impossible.', error);
-  }
+
   notify(`${moneyTypeLabel(type)} ${item.ref || ''} chargé dans Devis & Facture.`);
+
+  const url = `devis-facture.html?open=${encodeURIComponent(docKey)}&ref=${encodeURIComponent(item.ref || '')}`;
+  const win = window.open(url, 'bastcompta_devis_facture');
+
+  if (win) {
+    win.focus();
+  } else {
+    notify("Document chargé. Le navigateur a bloqué l'ouverture automatique de Devis & Facture.");
+  }
 }
 
 async function downloadCrmLinkedDocument(type, itemId) {
@@ -2387,6 +2402,112 @@ async function importInvoiceJsonToCurrentClient(event) {
     renderMain();
 
     notify(`Facture ${entry.ref} ajoutée au client.`);
+  } catch (error) {
+    console.error(error);
+    notify("Import impossible : fichier JSON invalide.");
+  }
+}
+
+function openInvoiceJsonImport() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.onchange = importInvoiceJsonToCurrentClient;
+  input.click();
+}
+
+async function saveInvoiceJsonFileToDrive(parsed, ref) {
+  if (!googleAccessToken) return null;
+
+  const fileName = `facture-${ref}.json`;
+  const content = JSON.stringify(parsed, null, 2);
+
+  const existing = await driveFilesList({
+    spaces: 'appDataFolder',
+    q: `name='${fileName.replace(/'/g, "\\'")}' and trashed=false`,
+    fields: 'files(id,name)'
+  }, false);
+
+  const files = existing?.result?.files || [];
+  const isUpdate = files.length > 0;
+
+  const metadata = isUpdate
+    ? { name: fileName }
+    : { name: fileName, parents: ['appDataFolder'] };
+
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', new Blob([content], { type: 'application/json' }));
+
+  const url = isUpdate
+    ? `https://www.googleapis.com/upload/drive/v3/files/${files[0].id}?uploadType=multipart&fields=id,name,modifiedTime`
+    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime`;
+
+  const res = await googleDriveFetch(url, {
+    method: isUpdate ? 'PATCH' : 'POST',
+    headers: { Authorization: `Bearer ${googleAccessToken}` },
+    body: form
+  });
+
+  if (!res || !res.ok) return null;
+  return await res.json();
+}
+
+async function importInvoiceJsonToCurrentClient(event) {
+  const project = getProject();
+  const file = event.target.files?.[0];
+  event.target.value = '';
+
+  if (!project || !file) return;
+
+  try {
+    const parsed = JSON.parse(await file.text());
+    const doc = parsed?.invoice;
+
+    if (!doc || !doc.documentNumber) {
+      notify("Ce fichier n'est pas une facture JSON valide.");
+      return;
+    }
+
+    const ref = String(doc.documentNumber).trim();
+    const driveFile = await saveInvoiceJsonFileToDrive(parsed, ref);
+
+    const entry = buildCrmDocEntry('invoice', doc, 'Google Drive', {
+      id: driveFile?.id || '',
+      name: driveFile?.name || `facture-${ref}.json`,
+      modifiedTime: driveFile?.modifiedTime || ''
+    });
+
+    if (!entry) {
+      notify("Facture impossible à lire.");
+      return;
+    }
+
+    entry.id = `invoice-${ref}`;
+    entry.documentUid = driveFile?.id || entry.uniqueKey || entry.id;
+    entry.fileId = driveFile?.id || '';
+    entry.fileName = driveFile?.name || `facture-${ref}.json`;
+    entry.rawDocument = doc;
+
+    if (!Array.isArray(project.linkedInvoices)) project.linkedInvoices = [];
+
+    project.linkedInvoices = project.linkedInvoices.filter(item =>
+      String(item.documentUid || item.fileId || item.id || '').trim() !== String(entry.documentUid || entry.fileId || entry.id || '').trim()
+    );
+
+    project.linkedInvoices.push(entry);
+    project.linkedInvoices = dedupeMoneyList(project.linkedInvoices);
+
+    project.updatedAt = new Date().toISOString();
+    addTimeline(project, `Facture importée : ${ref}`);
+
+    await saveData(false);
+    renderMain();
+
+    notify(driveFile?.id
+      ? `Facture ${ref} ajoutée au client et enregistrée dans Drive.`
+      : `Facture ${ref} ajoutée au client, mais Drive n'a pas été enregistré.`
+    );
   } catch (error) {
     console.error(error);
     notify("Import impossible : fichier JSON invalide.");

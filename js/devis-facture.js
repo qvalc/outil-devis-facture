@@ -716,7 +716,7 @@ async function uploadLocalJsonToDrive(event) {
       let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name';
       let method = 'POST';
 
-      if (files.length) {
+      if (isUpdate) {
         url = `https://www.googleapis.com/upload/drive/v3/files/${files[0].id}?uploadType=multipart&fields=id,name`;
         method = 'PATCH';
       }
@@ -1076,6 +1076,20 @@ async function saveChantiersSyncToDrive(showErrorAlert = false) {
     if (!existing) return false;
     const files = existing.result.files || [];
     const isUpdate = files.length > 0;
+
+    if (isUpdate) {
+      const ok = confirm(
+        `${fileName} existe déjà sur Google Drive.\n\n` +
+        `Si vous continuez, l'ancien document sera remplacé.\n\n` +
+        `Voulez-vous vraiment remplacer ce fichier ?`
+      );
+
+      if (!ok) {
+        if (showAlert) alert("Export annulé : ce numéro existe déjà.");
+        return null;
+      }
+    }
+
     const metadata = isUpdate
       ? { name: CHANTIERS_DRIVE_SYNC_FILE_NAME }
       : { name: CHANTIERS_DRIVE_SYNC_FILE_NAME, parents: ['appDataFolder'] };
@@ -2382,6 +2396,20 @@ async function exportDocTypeToDrive(docKey, showAlert = true) {
 
     const files = existing.result.files || [];
     const isUpdate = files.length > 0;
+
+    if (isUpdate) {
+      const ok = confirm(
+        `${fileName} existe déjà sur Google Drive.\n\n` +
+        `Si vous continuez, l'ancien document sera remplacé.\n\n` +
+        `Voulez-vous vraiment remplacer ce fichier ?`
+      );
+
+      if (!ok) {
+        if (showAlert) alert("Export annulé : ce numéro existe déjà.");
+        return null;
+      }
+    }
+
     const metadata = isUpdate
       ? { name: fileName }
       : { name: fileName, parents: ['appDataFolder'] };
@@ -4244,8 +4272,19 @@ window.BastComptaModule = {
   getStatus: () => ({ ready: true, module: 'devis-facture' })
 };
 
+function applyOpenDocumentParamsFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const pageKey = params.get('open') || params.get('docKey') || '';
+
+  if (pageKey && pageDefs.some(page => page.key === pageKey)) {
+    activePage = pageKey;
+  }
+
+  data = loadData();
+}
 
 window.addEventListener('load', async () => {
+  applyOpenDocumentParamsFromUrl();
   render();
   await initDriveClientOnly();
 
