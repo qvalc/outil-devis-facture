@@ -996,10 +996,35 @@ function isRenderableBusinessDocument(file, parsed = null) {
 
 async function makePdfForDriveJsonFile(file, parsed) {
   const name = String(file?.name || '').toLowerCase();
-  if (name.startsWith('devis-') || parsed?.quote) return makeRenderedDocumentPdfBlob(parsed, 'quote');
-  if (name.startsWith('facture-') || parsed?.invoice) return makeRenderedDocumentPdfBlob(parsed, 'invoice');
-  if (name.startsWith('rappel-') || parsed?.reminder) return makeRenderedDocumentPdfBlob(parsed, 'reminder');
-  if (name.includes('comptabilite')) return makeComptaReportPdfBlob(parsed);
+
+  if (name.startsWith('facture-')) {
+    return makeRenderedDocumentPdfBlob(parsed, 'invoice');
+  }
+
+  if (name.startsWith('devis-')) {
+    return makeRenderedDocumentPdfBlob(parsed, 'quote');
+  }
+
+  if (name.startsWith('rappel-')) {
+    return makeRenderedDocumentPdfBlob(parsed, 'reminder');
+  }
+
+  if (parsed?.invoice?.documentNumber) {
+    return makeRenderedDocumentPdfBlob(parsed, 'invoice');
+  }
+
+  if (parsed?.quote?.documentNumber) {
+    return makeRenderedDocumentPdfBlob(parsed, 'quote');
+  }
+
+  if (parsed?.reminder?.documentNumber) {
+    return makeRenderedDocumentPdfBlob(parsed, 'reminder');
+  }
+
+  if (name.includes('comptabilite')) {
+    return makeComptaReportPdfBlob(parsed);
+  }
+
   return null;
 }
 
