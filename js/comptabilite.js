@@ -3117,10 +3117,10 @@ function renderVat() {
     const disableAttr = isClosed ? 'disabled' : '';
     const netLabel = (() => {
       if (c.dueAmount > 0) {
-        if (dec.paid && row.outstanding <= 0.009) {
-          return `Payé : ${money(toNumber(dec.paymentAmount) || c.dueAmount)}`;
+        if (row.outstanding <= 0.009) {
+          return `Payée : ${money(c.dueAmount)}`;
         }
-        if (dec.paid && row.outstanding > 0.009) {
+        if (toNumber(dec.paymentAmount) > 0) {
           return `Solde restant : ${money(row.outstanding)}`;
         }
         return `À payer : ${money(c.dueAmount)}`;
@@ -3133,7 +3133,7 @@ function renderVat() {
       return 'TVA équilibrée';
     })();
     const netLabelClass = (() => {
-      if (c.dueAmount > 0 && (!dec.paid || row.outstanding > 0.009)) return 'status-bad';
+      if (c.dueAmount > 0 && row.outstanding > 0.009) return 'status-bad';
       return 'status-good';
     })();
     const dueDateLabel = dec.dueDate ? printableDate(dec.dueDate) : '—';
@@ -3142,8 +3142,8 @@ function renderVat() {
       : (dec.filed ? '<span class="vat-pill">Déclarée</span>' : '<span class="vat-pill muted">À déclarer</span>');
     const paymentBadge = (() => {
       if (c.dueAmount > 0) {
-        if (dec.paid && row.outstanding <= 0.009) return '<span class="vat-pill success">Payée</span>';
-        if (dec.paid && row.outstanding > 0.009) return '<span class="vat-pill danger">Solde TVA restant</span>';
+        if (row.outstanding <= 0.009) return '<span class="vat-pill success">Payée</span>';
+        if (toNumber(dec.paymentAmount) > 0) return '<span class="vat-pill danger">Solde TVA restant</span>';
         return '<span class="vat-pill danger">TVA à payer</span>';
       }
       if (c.creditAmount > 0) {
