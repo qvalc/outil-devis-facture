@@ -755,7 +755,12 @@ function clientKeys(client = {}) {
   const keys = [];
   const number = normalizeSearchText(client.clientNumber || client.number || '');
   const email = normalizeSearchText(client.email || client.clientEmail || '');
-  const vat = normalizeSearchText(client.vat || client.clientVat || '');
+
+  let vat = normalizeSearchText(client.vat || client.clientVat || '');
+  if (['na', 'n a', 'non applicable', 'aucun', 'sans tva'].includes(vat)) {
+    vat = '';
+  }
+
   const name = nameIdentityKey(client.name || client.clientName || client.client || '');
   if (number) keys.push('number:' + number);
   if (email) keys.push('email:' + email);
