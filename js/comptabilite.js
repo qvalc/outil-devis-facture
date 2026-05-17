@@ -2258,6 +2258,9 @@ function computeVatDeclaration(dec, previousCredit = 0) {
   const endDate = dec.endDate || getQuarterBounds(dec.year, dec.quarter).end;
   const salesRows = getPeriodSales(startDate, endDate);
   const purchaseRows = getPeriodPurchases(startDate, endDate);
+  const investmentRows = data.investments.filter(row =>
+    isDateInRange(row.date, startDate, endDate)
+  );
 
   const baseByRate = { '01': 0, '02': 0, '03': 0 };
   const vatByRate = { '54': 0 };
@@ -2279,6 +2282,17 @@ function computeVatDeclaration(dec, previousCredit = 0) {
     .filter(({ row }) => isDateInRange(row.date, startDate, endDate) && row.deductible)
     .reduce((sum, { i }) => sum + purchaseVatDisplay(i), 0);
 
+  const investmentsVat = investmentRows.reduce((sum, row) => {
+    return sum + round2(rowHtvaToVat(
+      toNumber(row.amount),
+      toNumber(row.rate || 21)
+    ));
+  }, 0);
+
+  const investmentsBase = investmentRows.reduce((sum, row) => {
+    return sum + toNumber(row.amount);
+  }, 0);
+
   const boxes = {
     '01': round2(baseByRate['01']),
     '02': round2(baseByRate['02']),
@@ -2292,7 +2306,7 @@ function computeVatDeclaration(dec, previousCredit = 0) {
     '55': round2(dec.manualBoxes?.['55']),
     '56': round2(dec.manualBoxes?.['56']),
     '57': round2(dec.manualBoxes?.['57']),
-    '59': round2(deductibleVat),
+    '59': round2(deductibleVat + investmentsVat),
     '61': round2(dec.manualBoxes?.['61']),
     '62': round2(dec.manualBoxes?.['62']),
     '63': round2(dec.manualBoxes?.['63']),
@@ -2300,7 +2314,7 @@ function computeVatDeclaration(dec, previousCredit = 0) {
     '72': 0,
     '81': round2(purchases81),
     '82': round2(purchases82),
-    '83': round2(dec.manualBoxes?.['83']),
+    '83': round2(investmentsBase + toNumber(dec.manualBoxes?.['83'])),
     '91': round2(dec.manualBoxes?.['91'])
   };
 
@@ -2318,7 +2332,7 @@ function computeVatDeclaration(dec, previousCredit = 0) {
     salesCount: salesRows.length,
     purchaseCount: purchaseRows.length,
     salesVat: round2(vatByRate['54']),
-    deductibleVat: round2(deductibleVat),
+    deductibleVat: round2(deductibleVat + investmentsVat),
     dueAmount: boxes['71'],
     creditAmount: boxes['72']
   };
@@ -2409,15 +2423,6 @@ function totals() {
     }, 0);
   })();
 
-  const investmentsVat = data.investments.reduce((sum, row) => {
-    if (!isInSelectedPeriod(row.date)) return sum;
-
-    return sum + round2(rowHtvaToVat(
-      toNumber(row.amount),
-      toNumber(row.rate || 21)
-    ));
-  }, 0);
-
   const purchasesMerchandiseNet = data.purchases.reduce(
     (sum, row) => sum + (row.category === 'marchandise' ? toNumber(row.htva) : 0),
     0
@@ -2480,7 +2485,7 @@ function totals() {
 
   const totalCharges = purchasesNet + yearlyAmort + lossesTotal;
   const estimatedProfit = salesNet - totalCharges;
-  const netVat = salesVat - purchasesVat - investmentsVat - carryover;
+  const netVat = salesVat - purchasesVat - carryover;
 
   const totalVatPaid = data.vat.declarations
     .reduce((sum, dec) => sum + (dec.paymentAmount || 0), 0);
