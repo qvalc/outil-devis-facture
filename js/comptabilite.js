@@ -2409,6 +2409,15 @@ function totals() {
     }, 0);
   })();
 
+  const investmentsVat = data.investments.reduce((sum, row) => {
+    if (!isInSelectedPeriod(row.date)) return sum;
+
+    return sum + round2(rowHtvaToVat(
+      toNumber(row.amount),
+      toNumber(row.rate || 21)
+    ));
+  }, 0);
+
   const purchasesMerchandiseNet = data.purchases.reduce(
     (sum, row) => sum + (row.category === 'marchandise' ? toNumber(row.htva) : 0),
     0
@@ -2471,7 +2480,7 @@ function totals() {
 
   const totalCharges = purchasesNet + yearlyAmort + lossesTotal;
   const estimatedProfit = salesNet - totalCharges;
-  const netVat = salesVat - purchasesVat - carryover;
+  const netVat = salesVat - purchasesVat - investmentsVat - carryover;
 
   const totalVatPaid = data.vat.declarations
     .reduce((sum, dec) => sum + (dec.paymentAmount || 0), 0);
