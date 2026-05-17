@@ -97,13 +97,24 @@ function dedupeMoneyList(list) {
   const byKey = new Map();
 
   (Array.isArray(list) ? list : []).forEach(item => {
-    const key = String(
-      item.documentUid ||
-      item.fileId ||
-      item.driveFileId ||
-      item.id ||
-      ''
-    ).trim();
+    const type = String(item.docKey || item.type || '').trim();
+    const ref = normalizeLinkKey(item.ref || item.documentNumber || item.invoiceNumber || '');
+
+    let key = '';
+
+    if (type && ref && ['quote', 'invoice', 'reminder'].includes(type)) {
+      key = `${type}:${ref}`;
+    } else if (ref && String(item.description || '').toLowerCase().includes('facture')) {
+      key = `invoice:${ref}`;
+    } else {
+      key = String(
+        item.documentUid ||
+        item.fileId ||
+        item.driveFileId ||
+        item.id ||
+        ''
+      ).trim();
+    }
 
     if (!key) return;
 
@@ -114,12 +125,7 @@ function dedupeMoneyList(list) {
         byKey.get(key) || {},
         item,
         {
-          documentUid:
-            item.documentUid ||
-            item.fileId ||
-            item.driveFileId ||
-            item.id ||
-            key
+          documentUid: key
         }
       )
     );
@@ -2166,17 +2172,13 @@ function isMoneyLinked(project, type, ref) {
       ? project.linkedInvoices
       : (project.linkedReminders || []);
 
-  const doc = (crmDocumentLinkCache || []).find(item =>
-    item.key === type && String(item.ref || '') === String(ref || '')
-  );
+  const stableKey = `${type}:${normalizeLinkKey(ref || '')}`;
 
-  const key = String(doc?.documentUid || doc?.fileId || doc?.id || '').trim();
-
-  return (list || []).some(item =>
-    key
-      ? String(item.documentUid || item.fileId || item.id || '').trim() === key
-      : String(item.ref || '').trim() === String(ref || '').trim()
-  );
+  return (list || []).some(item => {
+    const itemType = String(item.docKey || type || '').trim();
+    const itemRef = normalizeLinkKey(item.ref || item.documentNumber || item.invoiceNumber || '');
+    return `${itemType}:${itemRef}` === stableKey;
+  });
 }
 
 async function toggleCrmDocumentLink(type, ref, checked) {
@@ -2216,10 +2218,12 @@ async function toggleCrmDocumentLink(type, ref, checked) {
       clientRef: doc.clientRef,
       siteName: project.title
     };
-    const stableKey = String(payload.documentUid || payload.fileId || payload.id || crypto.randomUUID()).trim();
-    const existing = project[listName].find(item =>
-      stableKey && String(item.documentUid || item.fileId || item.id || '').trim() === stableKey
-    );
+    const stableKey = `${type}:${normalizeLinkKey(doc.ref || payload.ref || '')}`;
+    const existing = project[listName].find(item => {
+      const itemType = String(item.docKey || type || '').trim();
+      const itemRef = normalizeLinkKey(item.ref || item.documentNumber || item.invoiceNumber || '');
+      return `${itemType}:${itemRef}` === stableKey;
+    });
     if (existing) Object.assign(existing, payload, { documentUid: stableKey });
     else project[listName].push(Object.assign(payload, { documentUid: stableKey }));
 
@@ -2230,9 +2234,14 @@ async function toggleCrmDocumentLink(type, ref, checked) {
     project.clientRef = project.clientRef || doc.clientRef || '';
     addTimeline(project, `${doc.description} lié au client.`);
   } else {
-    project[listName] = project[listName].filter(item =>
-      String(item.documentUid || item.fileId || item.id || '') !== String(doc.documentUid || doc.fileId || doc.id || '')
-    );
+    const stableKey = `${type}:${normalizeLinkKey(doc.ref || ref || '')}`;
+
+    project[listName] = project[listName].filter(item => {
+      const itemType = String(item.docKey || type || '').trim();
+      const itemRef = normalizeLinkKey(item.ref || item.documentNumber || item.invoiceNumber || '');
+      return `${itemType}:${itemRef}` !== stableKey;
+    });
+
     addTimeline(project, `${doc.description} retiré du client.`);
   }
   project.updatedAt = new Date().toISOString();
@@ -2322,17 +2331,20 @@ async function previewCrmDocumentFromCache(type, ref) {
   if (project) {
     const listName = doc.list;
     if (!Array.isArray(project[listName])) project[listName] = [];
-    const stableKey = String(doc.documentUid || doc.fileId || pseudoId).trim();
+    const stableKey = `${type}:${normalizeLinkKey(doc.ref || ref || '')}`;
 
-    const existing = project[listName].find(item =>
-      String(item.documentUid || item.fileId || item.id || '').trim() === stableKey
-    );
+    const existing = project[listName].find(item => {
+      const itemType = String(item.docKey || type || '').trim();
+      const itemRef = normalizeLinkKey(item.ref || item.documentNumber || item.invoiceNumber || '');
+      return `${itemType}:${itemRef}` === stableKey;
+    });
 
     if (!existing) {
       project[listName].push({
         ...doc,
         id: pseudoId,
         documentUid: stableKey,
+        docKey: type,
         amount: doc.clientHtva || doc.htva || 0
       });
     }
@@ -2367,11 +2379,13 @@ async function deleteCrmDocumentFromCache(type, ref) {
   const project = getProject();
   if (project) {
     const listName = doc.list;
-    const removeKey = String(doc.documentUid || doc.fileId || doc.id || '').trim();
+    const removeKey = `${type}:${normalizeLinkKey(doc.ref || ref || '')}`;
 
-    project[listName] = (project[listName] || []).filter(item =>
-      String(item.documentUid || item.fileId || item.id || '').trim() !== removeKey
-    );
+    project[listName] = (project[listName] || []).filter(item => {
+      const itemType = String(item.docKey || type || '').trim();
+      const itemRef = normalizeLinkKey(item.ref || item.documentNumber || item.invoiceNumber || '');
+      return `${itemType}:${itemRef}` !== removeKey;
+    });
     await saveData(false);
   }
   renderCrmDocumentLinkModal();
