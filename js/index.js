@@ -69,11 +69,6 @@ const refreshHiddenDriveBtn = document.getElementById('refreshHiddenDriveBtn');
 const hiddenDriveStatus = document.getElementById('hiddenDriveStatus');
 const hiddenDriveList = document.getElementById('hiddenDriveList');
 const hiddenDriveTabs = document.getElementById('hiddenDriveTabs');
-
-const openHelpBtn = document.getElementById('openHelpBtn');
-const helpModal = document.getElementById('helpModal');
-const closeHelpBtn = document.getElementById('closeHelpBtn');
-const helpTabs = document.getElementById('helpTabs');
 const fullBackupBtn = document.getElementById('fullBackupBtn');
 const fullRestoreBtn = document.getElementById('fullRestoreBtn');
 const fullRestoreInput = document.getElementById('fullRestoreInput');
@@ -1899,30 +1894,6 @@ function showSubscriptionModal(result) {
   subscriptionModal.setAttribute('aria-hidden', 'false');
 }
 
-
-function openHelpModal() {
-  settingsMenu?.classList.remove('open');
-  helpModal?.classList.add('open');
-  helpModal?.setAttribute('aria-hidden', 'false');
-}
-
-function closeHelpModal() {
-  helpModal?.classList.remove('open');
-  helpModal?.setAttribute('aria-hidden', 'true');
-}
-
-function switchHelpTab(tabName) {
-  if (!tabName || !helpTabs || !helpModal) return;
-
-  helpTabs.querySelectorAll('[data-help-tab]').forEach(button => {
-    button.classList.toggle('active', button.dataset.helpTab === tabName);
-  });
-
-  helpModal.querySelectorAll('[data-help-panel]').forEach(panel => {
-    panel.classList.toggle('active', panel.dataset.helpPanel === tabName);
-  });
-}
-
 closeSubscriptionModalBtn?.addEventListener('click', () => {
   subscriptionModal?.classList.remove('open');
   subscriptionModal?.setAttribute('aria-hidden', 'true');
@@ -1947,19 +1918,6 @@ document.addEventListener('click', event => {
 
 globalSaveBtn?.addEventListener('click', saveAllModulesFromPortal);
 hiddenDriveBtn?.addEventListener('click', openHiddenDriveModal);
-openHelpBtn?.addEventListener('click', openHelpModal);
-closeHelpBtn?.addEventListener('click', closeHelpModal);
-helpTabs?.addEventListener('click', event => {
-  const button = event.target.closest('[data-help-tab]');
-  if (!button) return;
-  switchHelpTab(button.dataset.helpTab);
-});
-helpModal?.addEventListener('click', event => {
-  if (event.target === helpModal) closeHelpModal();
-});
-document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && helpModal?.classList.contains('open')) closeHelpModal();
-});
 closeHiddenDriveBtn?.addEventListener('click', closeHiddenDriveModal);
 refreshHiddenDriveBtn?.addEventListener('click', refreshHiddenDriveList);
 
@@ -2177,3 +2135,121 @@ onAuthStateChanged(auth, async (user) => {
     showAuth();
   }
 });
+
+
+/* ================================
+   Centre d'aide BastCompta
+   ================================ */
+
+const openHelpBtn = document.getElementById('openHelpBtn');
+const helpCenterModal = document.getElementById('helpCenterModal');
+const closeHelpBtn = document.getElementById('closeHelpBtn');
+const helpTabs = Array.from(document.querySelectorAll('.help-tab'));
+const helpPages = Array.from(document.querySelectorAll('.help-page'));
+const helpSearchInput = document.getElementById('helpSearchInput');
+const helpSearchCount = document.getElementById('helpSearchCount');
+const helpCurrentTitle = document.getElementById('helpCurrentTitle');
+const helpCurrentSubtitle = document.getElementById('helpCurrentSubtitle');
+
+function normalizeHelpText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function openHelpCenter() {
+  if (!helpCenterModal) return;
+  settingsMenu?.classList.remove('open');
+  helpCenterModal.classList.add('open');
+  helpCenterModal.setAttribute('aria-hidden', 'false');
+  if (helpSearchInput) helpSearchInput.focus();
+}
+
+function closeHelpCenter() {
+  if (!helpCenterModal) return;
+  helpCenterModal.classList.remove('open');
+  helpCenterModal.setAttribute('aria-hidden', 'true');
+}
+
+function switchHelpTab(tabName) {
+  const selectedPage = helpPages.find(page => page.dataset.helpPage === tabName);
+  if (!selectedPage) return;
+
+  helpTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.helpTab === tabName));
+  helpPages.forEach(page => page.classList.toggle('active', page === selectedPage));
+
+  if (helpCurrentTitle) helpCurrentTitle.textContent = selectedPage.dataset.title || 'Centre d’aide';
+  if (helpCurrentSubtitle) helpCurrentSubtitle.textContent = selectedPage.dataset.subtitle || '';
+
+  if (helpSearchInput && helpSearchInput.value) {
+    helpSearchInput.value = '';
+    filterHelpArticles();
+  }
+}
+
+function filterHelpArticles() {
+  if (!helpCenterModal) return;
+
+  const query = normalizeHelpText(helpSearchInput?.value || '');
+  const articles = Array.from(document.querySelectorAll('.help-article'));
+
+  articles.forEach(article => {
+    article.classList.remove('hidden-by-search');
+  });
+  helpPages.forEach(page => {
+    page.classList.remove('hidden-by-search');
+  });
+
+  if (!query) {
+    helpCenterModal.classList.remove('searching');
+    if (helpSearchCount) helpSearchCount.textContent = '';
+    return;
+  }
+
+  helpCenterModal.classList.add('searching');
+
+  let matchCount = 0;
+
+  helpPages.forEach(page => {
+    const pageArticles = Array.from(page.querySelectorAll('.help-article'));
+    let pageHasMatch = false;
+
+    pageArticles.forEach(article => {
+      const text = normalizeHelpText(article.innerText);
+      const match = text.includes(query);
+      article.classList.toggle('hidden-by-search', !match);
+      if (match) {
+        pageHasMatch = true;
+        matchCount += 1;
+      }
+    });
+
+    page.classList.toggle('hidden-by-search', !pageHasMatch);
+  });
+
+  helpTabs.forEach(tab => tab.classList.remove('active'));
+
+  if (helpCurrentTitle) helpCurrentTitle.textContent = 'Résultats de recherche';
+  if (helpCurrentSubtitle) helpCurrentSubtitle.textContent = matchCount ? 'Les rubriques contenant le mot recherché sont affichées.' : 'Aucun résultat trouvé.';
+  if (helpSearchCount) helpSearchCount.textContent = matchCount ? matchCount + ' résultat(s)' : 'Aucun résultat';
+}
+
+openHelpBtn?.addEventListener('click', openHelpCenter);
+closeHelpBtn?.addEventListener('click', closeHelpCenter);
+
+helpCenterModal?.addEventListener('click', event => {
+  if (event.target === helpCenterModal) closeHelpCenter();
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && helpCenterModal?.classList.contains('open')) {
+    closeHelpCenter();
+  }
+});
+
+helpTabs.forEach(tab => {
+  tab.addEventListener('click', () => switchHelpTab(tab.dataset.helpTab));
+});
+
+helpSearchInput?.addEventListener('input', filterHelpArticles);
