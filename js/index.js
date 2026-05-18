@@ -1204,10 +1204,21 @@ async function createFullBackupZip() {
   const registry = buildClientRegistry(Array.isArray(localDevis.clients) ? localDevis.clients : []);
   const driveFilesManifest = [];
 
+  const currentUser = auth.currentUser;
+
+  if (!currentUser?.uid) {
+    throw new Error('Utilisateur non connecté. Impossible de créer une sauvegarde liée au compte.');
+  }
+
   const manifest = {
     app: 'BastCompta',
     version: BAST_BACKUP_VERSION,
     createdAt: now.toISOString(),
+    owner: {
+      uid: currentUser.uid,
+      email: currentUser.email || '',
+      displayName: currentUser.displayName || ''
+    },
     backupType: 'complete-local-drive-pdf-crm-suivi-client-faithful',
     modules: ['devis-facture', 'comptabilite', 'suivi-client', 'impots'],
     restore: { localStorage: true, googleDrive: true, pdfFiles: true, clients: true, crm: true, mode: 'complete-reconstruction' },
@@ -1385,6 +1396,26 @@ async function handleFullRestoreFile(event) {
     const zip = await JSZip.loadAsync(file);
     const manifestFile = zip.file('manifest-bastcompta.json');
     const manifest = manifestFile ? JSON.parse(await manifestFile.async('string')) : null;
+
+    const currentUser = auth.currentUser;
+
+    if (!currentUser?.uid) {
+      throw new Error('Utilisateur non connecté. Impossible de restaurer cette sauvegarde.');
+    }
+
+    if (!manifest?.owner?.uid) {
+      throw new Error(
+        'Cette sauvegarde ne contient pas d’identifiant de propriétaire. ' +
+        'Par sécurité, elle ne peut pas être restaurée automatiquement.'
+      );
+    }
+
+    if (manifest.owner.uid !== currentUser.uid) {
+      throw new Error(
+        'Cette sauvegarde appartient à un autre compte BastCompta. ' +
+        'Restauration bloquée pour éviter le partage ou la réutilisation d’un compte d’essai.'
+      );
+    }
 
     const readJsonFromZip = async (path, fallback) => {
       const item = zip.file(path);
