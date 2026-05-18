@@ -69,6 +69,11 @@ const refreshHiddenDriveBtn = document.getElementById('refreshHiddenDriveBtn');
 const hiddenDriveStatus = document.getElementById('hiddenDriveStatus');
 const hiddenDriveList = document.getElementById('hiddenDriveList');
 const hiddenDriveTabs = document.getElementById('hiddenDriveTabs');
+
+const openHelpBtn = document.getElementById('openHelpBtn');
+const helpModal = document.getElementById('helpModal');
+const closeHelpBtn = document.getElementById('closeHelpBtn');
+const helpTabs = document.getElementById('helpTabs');
 const fullBackupBtn = document.getElementById('fullBackupBtn');
 const fullRestoreBtn = document.getElementById('fullRestoreBtn');
 const fullRestoreInput = document.getElementById('fullRestoreInput');
@@ -1894,6 +1899,30 @@ function showSubscriptionModal(result) {
   subscriptionModal.setAttribute('aria-hidden', 'false');
 }
 
+
+function openHelpModal() {
+  settingsMenu?.classList.remove('open');
+  helpModal?.classList.add('open');
+  helpModal?.setAttribute('aria-hidden', 'false');
+}
+
+function closeHelpModal() {
+  helpModal?.classList.remove('open');
+  helpModal?.setAttribute('aria-hidden', 'true');
+}
+
+function switchHelpTab(tabName) {
+  if (!tabName || !helpTabs || !helpModal) return;
+
+  helpTabs.querySelectorAll('[data-help-tab]').forEach(button => {
+    button.classList.toggle('active', button.dataset.helpTab === tabName);
+  });
+
+  helpModal.querySelectorAll('[data-help-panel]').forEach(panel => {
+    panel.classList.toggle('active', panel.dataset.helpPanel === tabName);
+  });
+}
+
 closeSubscriptionModalBtn?.addEventListener('click', () => {
   subscriptionModal?.classList.remove('open');
   subscriptionModal?.setAttribute('aria-hidden', 'true');
@@ -1918,6 +1947,19 @@ document.addEventListener('click', event => {
 
 globalSaveBtn?.addEventListener('click', saveAllModulesFromPortal);
 hiddenDriveBtn?.addEventListener('click', openHiddenDriveModal);
+openHelpBtn?.addEventListener('click', openHelpModal);
+closeHelpBtn?.addEventListener('click', closeHelpModal);
+helpTabs?.addEventListener('click', event => {
+  const button = event.target.closest('[data-help-tab]');
+  if (!button) return;
+  switchHelpTab(button.dataset.helpTab);
+});
+helpModal?.addEventListener('click', event => {
+  if (event.target === helpModal) closeHelpModal();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && helpModal?.classList.contains('open')) closeHelpModal();
+});
 closeHiddenDriveBtn?.addEventListener('click', closeHiddenDriveModal);
 refreshHiddenDriveBtn?.addEventListener('click', refreshHiddenDriveList);
 
