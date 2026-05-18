@@ -299,6 +299,7 @@
           <button class="help-tab" type="button" data-help-tab="premiers-pas">Premiers pas</button>
           <button class="help-tab" type="button" data-help-tab="devis-factures">Devis & Factures</button>
           <button class="help-tab" type="button" data-help-tab="comptabilite">Comptabilité</button>
+          <button class="help-tab" type="button" data-help-tab="tva">TVA</button>
           <button class="help-tab" type="button" data-help-tab="suivi-client">Suivi client</button>
           <button class="help-tab" type="button" data-help-tab="impots-ipp">Impôts IPP</button>
           <button class="help-tab" type="button" data-help-tab="google-drive">Google Drive</button>
@@ -389,6 +390,16 @@
           </article>
 
           <article class="help-article">
+            <h3>Renommer correctement le document</h3>
+            <p>Quand vous transformez ou reprenez un document, pensez à adapter son numéro et son type.</p>
+            <p>Un devis ne doit pas garder un numéro de devis lorsqu’il devient une facture. Par exemple, un devis <strong>D-2026-001</strong> doit devenir une facture <strong>F-2026-001</strong>.</p>
+            <p>De la même manière, si un document devient un rappel, il peut être renommé avec une référence de rappel, par exemple <strong>R-2026-001</strong>.</p>
+            <p>Cette logique évite les confusions entre devis, factures et rappels. Elle permet aussi de retrouver plus facilement les documents dans le suivi client, les exports, les sauvegardes et la comptabilité.</p>
+            <p>Avant de sauvegarder ou d’envoyer en comptabilité, vérifiez toujours que le type de document et son numéro correspondent bien à la situation réelle.</p>
+          </article>
+
+
+          <article class="help-article">
             <h3>Liaison automatique avec le Suivi client</h3>
             <p>Quand un document contient un nom client et un numéro de document, BastCompta peut utiliser ces informations pour créer ou mettre à jour automatiquement des éléments dans le module Suivi client.</p>
             <p>Le nom du client sert de base pour retrouver ou créer la fiche client. Le numéro du document permet d’identifier le devis, la facture ou le rappel.</p>
@@ -401,7 +412,8 @@
             <p>Dans une facture, le bouton “Reprendre devis” sert à reprendre les informations d’un devis existant pour créer ou compléter la facture correspondante.</p>
             <p>Dans un devis, le bouton “Reprendre facture” sert à reprendre les informations d’une facture existante si vous devez recréer ou adapter un devis à partir d’un document déjà encodé.</p>
             <p>Pour que la reprise fonctionne correctement, le document source doit être ouvert ou accessible dans l’application. Il faut donc d’abord ouvrir le devis ou la facture concernée avant d’utiliser le bouton de reprise.</p>
-            <p>Après une reprise, contrôlez toujours le nom du client, le numéro du document, la date, les lignes, les quantités, les prix, les remises, les taux TVA et les totaux avant de sauvegarder.</p>
+            <p>Après une reprise, contrôlez toujours le nom du client, le numéro du document, le type de document, la date, les lignes, les quantités, les prix, les remises, les taux TVA et les totaux avant de sauvegarder.</p>
+            <p>Pensez aussi à renommer le document si son rôle change : par exemple passer de <strong>D-2026-001</strong> à <strong>F-2026-001</strong> lorsque le devis devient une facture.</p>
             <p>Ces boutons sont pratiques, mais ils ne remplacent pas un contrôle humain : si vous reprenez un ancien document, certaines informations peuvent ne plus être à jour.</p>
           </article>
 
@@ -480,7 +492,96 @@
             <p>Certains cas demandent un contrôle humain : autoliquidation, achats intracommunautaires, TVA non déductible, frais mixtes, véhicule, carburant, restaurant, cadeaux clients, investissements ou notes de crédit.</p>
             <p>En cas de doute, il vaut mieux demander confirmation au comptable.</p>
           </article>
+
+          <article class="help-article">
+            <h3>Période TVA clôturée : lignes grisées dans ventes et achats</h3>
+            <p>Lorsqu’une période TVA est clôturée, les ventes et achats liés à cette période peuvent apparaître en grisé dans les tableaux.</p>
+            <p>Ce grisé sert à signaler que ces écritures appartiennent à une période déjà clôturée et qu’elles ne devraient normalement plus être modifiées sans vérification.</p>
+            <p>C’est une sécurité visuelle importante : si vous modifiez une vente ou un achat d’une période clôturée, les montants TVA déjà préparés ou déclarés peuvent ne plus correspondre.</p>
+            <p>Si une correction est nécessaire après clôture, notez clairement la raison, vérifiez l’impact TVA et demandez conseil si nécessaire avant de modifier une période déjà traitée.</p>
+          </article>
+
         </section>
+
+        <section class="help-page" data-help-page="tva" data-title="TVA" data-subtitle="Comprendre les périodes, codes TVA, statuts payé/clôturé et contrôles avant déclaration.">
+          <article class="help-article">
+            <h3>À quoi sert l’onglet TVA ?</h3>
+            <p>L’onglet TVA sert à préparer et contrôler les informations utiles pour une déclaration TVA.</p>
+            <p>Il permet de regrouper les ventes, achats, TVA due, TVA déductible et montants liés à une période.</p>
+            <p>Il ne remplace pas Intervat : il sert à préparer les chiffres avant encodage ou vérification officielle.</p>
+          </article>
+
+          <article class="help-article">
+            <h3>Comprendre les périodes TVA</h3>
+            <p>Une période TVA correspond à une période de déclaration : mois, trimestre ou autre période selon votre situation.</p>
+            <p>Dans BastCompta, les ventes et achats sont rattachés à une période selon leur date. Il est donc très important d’encoder correctement la date des factures.</p>
+            <p>Avant de clôturer une période, contrôlez que toutes les ventes et tous les achats concernés ont bien été encodés.</p>
+          </article>
+
+          <article class="help-article">
+            <h3>Comment remplir une période TVA</h3>
+            <ol>
+              <li>Vérifiez la période concernée : dates de début et de fin.</li>
+              <li>Contrôlez les ventes reprises dans cette période.</li>
+              <li>Contrôlez les achats repris dans cette période.</li>
+              <li>Vérifiez les montants HTVA, TVA et TVAC.</li>
+              <li>Vérifiez les taux TVA appliqués.</li>
+              <li>Contrôlez les codes TVA proposés.</li>
+              <li>Comparez avec vos factures réelles et vos documents originaux.</li>
+              <li>Encodez ensuite les informations nécessaires dans Intervat ou transmettez-les à votre comptable.</li>
+            </ol>
+          </article>
+
+          <article class="help-article">
+            <h3>Statut payé</h3>
+            <p>Le statut “payé” sert à indiquer qu’une période ou un montant TVA a été réglé.</p>
+            <p>Ce statut aide à suivre ce qui a déjà été payé et ce qui reste éventuellement à faire.</p>
+            <p>Marquez une période comme payée uniquement après avoir réellement effectué le paiement ou reçu la confirmation nécessaire.</p>
+          </article>
+
+          <article class="help-article">
+            <h3>Statut clôturé</h3>
+            <p>Le statut “clôturé” indique que la période est considérée comme terminée et contrôlée.</p>
+            <p>Une fois clôturée, la période ne devrait plus être modifiée sauf correction volontaire.</p>
+            <p>Dans les tableaux de ventes et d’achats, les écritures liées à une période clôturée peuvent être grisées. Cela signifie qu’elles appartiennent à une période déjà traitée.</p>
+            <p>Avant de clôturer, assurez-vous que tout est correct : factures manquantes, notes de crédit, achats oubliés, dates, taux TVA et montants.</p>
+          </article>
+
+          <article class="help-article">
+            <h3>Pourquoi les lignes deviennent grisées ?</h3>
+            <p>Le grisé dans les ventes ou achats indique qu’une écriture appartient à une période TVA clôturée.</p>
+            <p>Le but est d’éviter une modification accidentelle d’une facture déjà prise en compte dans une période préparée ou déclarée.</p>
+            <p>Si vous devez vraiment modifier une ligne grisée, il faut comprendre l’impact : la TVA de la période peut changer et les montants déclarés peuvent ne plus correspondre.</p>
+          </article>
+
+          <article class="help-article">
+            <h3>Comprendre les codes TVA</h3>
+            <p>Les codes TVA servent à classer les montants dans les bonnes cases de la déclaration TVA.</p>
+            <p>Selon le type d’opération, BastCompta peut proposer ou préparer des montants correspondant aux ventes, achats, TVA due ou TVA déductible.</p>
+            <p>Les codes peuvent dépendre du type de facture, du taux TVA, de la nature de l’achat ou de la vente, et de certains cas particuliers.</p>
+            <p>Avant déclaration, vérifiez toujours les codes proposés, surtout en cas d’autoliquidation, achat intracommunautaire, TVA non déductible, note de crédit ou investissement.</p>
+          </article>
+
+          <article class="help-article">
+            <h3>Contrôle avant déclaration</h3>
+            <ul>
+              <li>Vérifier que toutes les factures de vente de la période sont présentes.</li>
+              <li>Vérifier que toutes les factures d’achat de la période sont présentes.</li>
+              <li>Contrôler les notes de crédit.</li>
+              <li>Contrôler les taux TVA.</li>
+              <li>Comparer les totaux avec les documents réels.</li>
+              <li>Vérifier les montants à payer ou à récupérer.</li>
+              <li>Faire une sauvegarde avant clôture.</li>
+            </ul>
+          </article>
+
+          <article class="help-article">
+            <h3>Danger principal</h3>
+            <p>Le plus grand risque est de clôturer une période alors qu’il manque une facture, qu’un achat est mal classé ou qu’une facture a été envoyée deux fois en comptabilité.</p>
+            <p>Avant de clôturer, prenez le temps de contrôler les totaux. Une période clôturée doit être considérée comme une période validée.</p>
+          </article>
+        </section>
+
 
         <section class="help-page" data-help-page="suivi-client" data-title="Suivi client" data-subtitle="Centraliser les clients, documents, coûts, marges et historique.">
           <article class="help-article">
