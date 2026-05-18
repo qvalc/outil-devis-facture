@@ -1,248 +1,390 @@
-
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BastCompta - Centre d'aide</title>
+  <title>Portail BastCompta</title>
   <link rel="stylesheet" href="css/index.css">
+  <script src="js/storage.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
+
 <body>
+  <div class="app">
+    <section id="authScreen">
+      <div class="auth-layout">
+        <div class="showcase">
+          <div class="brand">
 
-<div class="help-overlay open" id="helpOverlay">
-  <div class="help-modal">
+            <p>
+              <strong>BastCompta</strong> aide les indépendants à centraliser leurs devis, factures, clients et documents utiles à leur gestion quotidienne.
+            </p>
+          </div>
 
-    <div class="help-sidebar">
-      <h2>Centre d'aide</h2>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <div class="feature-icon">DF</div>
+              <h3>Devis & Factures</h3>
+              <p>Créez, imprimez et gérez vos documents commerciaux avec une présentation professionnelle.</p>
+            </div>
 
-      <input type="text" id="helpSearch" placeholder="🔎 Rechercher un mot clé...">
+            <div class="feature-card">
+              <div class="feature-icon">€</div>
+              <h3>Comptabilité</h3>
+              <p>Suivez vos ventes, achats, frais, investissements, résultats et éléments utiles à votre gestion.</p>
+            </div>
 
-      <button class="help-tab active" data-tab="presentation">Présentation</button>
-      <button class="help-tab" data-tab="premierspas">Premiers pas</button>
-      <button class="help-tab" data-tab="devis">Devis & Factures</button>
-      <button class="help-tab" data-tab="compta">Comptabilité</button>
-      <button class="help-tab" data-tab="clients">Suivi client</button>
-      <button class="help-tab" data-tab="impots">Impôts IPP</button>
-      <button class="help-tab" data-tab="drive">Google Drive</button>
-      <button class="help-tab" data-tab="sauvegardes">Sauvegardes</button>
-      <button class="help-tab" data-tab="problemes">Résolution des problèmes</button>
+            <div class="feature-card">
+              <div class="feature-icon">👥</div>
+              <h3>Suivi client</h3>
+              <p>Gardez une vue claire sur vos clients, chantiers, prestations et informations importantes.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon">IPP</div>
+              <h3>Impôts IPP</h3>
+              <p>Regroupez les informations utiles pour préparer plus facilement votre déclaration fiscale.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon">TVA</div>
+              <h3>Déclarations TVA</h3>
+              <p>Préparez vos données TVA, suivez vos périodes comptables et facilitez vos déclarations.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon">☁</div>
+              <h3>Sauvegardes</h3>
+              <p>Conservez vos données, créez des sauvegardes ZIP et restaurez vos fichiers en cas de besoin.</p>
+            </div>
+          </div>
+
+          <div class="bottom-note">
+            © Nicolas Sébastien - BastCompta - bastcompta@outlook.be
+          </div>
+
+        </div>
+
+        <div class="auth-card">
+          <div class="auth-logo">
+            <img src="logo.png" alt="Logo BastCompta">
+          </div>
+
+          <div class="auth-head">
+            <h2>Connexion à votre espace</h2>
+            <p>Identifiez-vous ou créez votre compte pour accéder au portail.</p>
+          </div>
+
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-auth-tab="login" type="button">Connexion</button>
+            <button class="auth-tab" data-auth-tab="register" type="button">Créer un compte</button>
+          </div>
+
+          <form id="loginForm" class="stack">
+            <div class="field-group">
+              <label for="loginEmail">Adresse mail</label>
+              <input id="loginEmail" type="email" autocomplete="email" placeholder="exemple@domaine.be" required />
+            </div>
+
+            <div class="field-group">
+              <label for="loginPassword">Mot de passe</label>
+              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Votre mot de passe"
+                required />
+            </div>
+
+            <button class="primary" type="submit">Se connecter</button>
+
+            <div class="inline-links">
+              <button id="forgotPasswordBtn" class="link-btn" type="button">Mot de passe oublié</button>
+              <span class="inline-note">Un email de réinitialisation pourra être envoyé.</span>
+            </div>
+          </form>
+
+          <form id="registerForm" class="stack hidden">
+            <div class="field-group">
+              <label for="registerEmail">Adresse mail</label>
+              <input id="registerEmail" type="email" autocomplete="email" placeholder="exemple@domaine.be" required />
+            </div>
+
+            <div class="field-group">
+              <label for="registerPassword">Mot de passe</label>
+              <input id="registerPassword" type="password" autocomplete="new-password" minlength="8"
+                placeholder="Minimum 8 caractères" required />
+            </div>
+
+            <div class="field-group">
+              <label for="registerPasswordConfirm">Confirmer le mot de passe</label>
+              <input id="registerPasswordConfirm" type="password" autocomplete="new-password" minlength="8"
+                placeholder="Répète le mot de passe" required />
+            </div>
+
+            <button class="primary" type="submit">Créer le compte</button>
+            <div class="hint">Après création, un email de vérification peut être envoyé.</div>
+          </form>
+
+          <div id="authMessage" class="message"></div>
+        </div>
+      </div>
+  </div>
+  </section>
+
+  <section id="portalScreen" class="hidden">
+    <div class="portal-shell">
+
+      <div class="portal-topbar">
+
+        <div class="main-tabs">
+
+          <button class="main-tab active" data-main-tab="devis" type="button">
+            <span class="tab-icon tab-icon-devis" aria-hidden="true">📄</span>
+            <span>Devis &amp; Facture</span>
+          </button>
+
+          <button class="main-tab" data-main-tab="compta" type="button">
+            <span class="tab-icon tab-icon-compta" aria-hidden="true">📊</span>
+            <span>Comptabilité</span>
+          </button>
+
+          <button class="main-tab" data-main-tab="chantier" type="button">
+            <span class="tab-icon tab-icon-client" aria-hidden="true">👥</span>
+            <span>Suivi client</span>
+          </button>
+
+          <button class="main-tab" data-main-tab="impots" type="button">
+            <span class="tab-icon tab-icon-impots" aria-hidden="true">🧾</span>
+            <span>Impôts IPP</span>
+          </button>
+
+          <input id="fullRestoreInput" type="file" accept="application/zip,.zip" class="hidden" />
+        </div>
+
+        <div class="topbar-logo">
+          <img src="logo.png" alt="BastCompta">
+        </div>
+
+        <div class="user-actions">
+          <button id="globalSaveBtn" class="ghost icon-btn" title="Sauvegarder">
+            💾
+          </button>
+
+          <div id="currentUser" class="user-pill"></div>
+
+          <div id="settingsMenu" class="settings-menu">
+            <button id="settingsMenuBtn" class="settings-icon-btn ghost settings-gear-btn" type="button"
+              title="Paramètres" aria-label="Paramètres">
+              ⚙️
+            </button>
+
+            <div class="settings-dropdown" id="settingsDropdown">
+              <button id="fullBackupBtn" type="button">Créer une sauvegarde ZIP</button>
+              <button id="fullRestoreBtn" type="button">Restaurer une sauvegarde ZIP</button>
+              <button id="hiddenDriveBtn" type="button">Fichiers Drive cachés</button>
+              <button id="openHelpBtn" type="button">Présentation & FAQ</button>
+              <button id="connectDriveBtn" type="button">Connecter Google Drive</button>
+              <button id="disconnectDriveBtn" type="button">Déconnecter Google Drive</button>
+              <button id="sendVerificationBtn" type="button">Renvoyer email de vérification</button>
+
+              <div class="settings-separator"></div>
+
+              <button id="logoutBtn" class="danger-link" type="button">Déconnecter</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="workspace">
+
+        <div class="workspace-head">
+          Vos outils sont chargés directement dans le portail.
+        </div>
+
+        <div id="panel-devis" class="tab-panel active">
+          <iframe id="devisFrame" src="about:blank" data-src="devis-facture.html" title="Devis et Facture"></iframe>
+        </div>
+
+        <div id="panel-compta" class="tab-panel">
+          <iframe id="comptaFrame" src="about:blank" data-src="comptabilite.html" title="Comptabilité"></iframe>
+        </div>
+
+        <div id="panel-chantier" class="tab-panel">
+          <iframe id="chantierFrame" src="about:blank" data-src="suivi-client.html" title="Suivi client"></iframe>
+        </div>
+
+        <div id="panel-impots" class="tab-panel">
+          <iframe id="impotsFrame" src="about:blank" data-src="impots.html" title="Impôts IPP"></iframe>
+        </div>
+
+      </div>
     </div>
+  </section>
 
-    <div class="help-content">
-
-      <div class="help-page active" id="presentation">
-        <h1>Présentation</h1>
-
-        <div class="help-block">
-          <p>
-            BastCompta est un outil de gestion et d’organisation destiné aux indépendants
-            et petites structures.
-          </p>
-
-          <p>
-            L’objectif principal est de centraliser les devis, factures, documents,
-            clients, informations TVA et éléments administratifs dans un seul espace.
-          </p>
-
-          <p>
-            BastCompta aide à préparer et organiser les données avant transmission
-            au comptable ou avant déclaration officielle.
-          </p>
+  <div id="hiddenDriveModal" class="drive-modal" aria-hidden="true">
+    <div class="drive-modal-card">
+      <div class="drive-modal-head">
+        <div>
+          <h3>Fichiers Drive cachés</h3>
+          <p>Contenu du dossier Google Drive appDataFolder utilisé par BastCompta. Ces fichiers ne sont pas visibles
+            dans l’interface Drive classique.</p>
+        </div>
+        <div class="user-actions">
+          <button id="refreshHiddenDriveBtn" class="ghost" type="button">Actualiser</button>
+          <button id="closeHiddenDriveBtn" type="button">Fermer</button>
         </div>
       </div>
-
-      <div class="help-page" id="premierspas">
-        <h1>Premiers pas</h1>
-
-        <div class="help-block">
-          <h3>1. Créer son compte</h3>
-          <p>Créez votre compte puis connectez-vous au portail BastCompta.</p>
-
-          <h3>2. Connecter Google Drive</h3>
-          <p>
-            Le module Drive permet les sauvegardes et certaines synchronisations.
-          </p>
-
-          <h3>3. Commencer par les clients</h3>
-          <p>
-            Encodez vos premiers clients avant de créer vos devis et factures.
-          </p>
+      <div class="drive-modal-body">
+        <div class="hidden-drive-tabs" id="hiddenDriveTabs" aria-label="Filtrer les fichiers Drive cachés">
+          <button class="hidden-drive-tab active" type="button" data-drive-category="all">Tous</button>
+          <button class="hidden-drive-tab" type="button" data-drive-category="devis">Devis</button>
+          <button class="hidden-drive-tab" type="button" data-drive-category="factures">Factures</button>
+          <button class="hidden-drive-tab" type="button" data-drive-category="rappels">Rappels</button>
+          <button class="hidden-drive-tab" type="button" data-drive-category="comptabilite">Comptabilité</button>
+          <button class="hidden-drive-tab" type="button" data-drive-category="clients">Clients / chantiers</button>
+          <button class="hidden-drive-tab" type="button" data-drive-category="impots">Impôts</button>
+          <button class="hidden-drive-tab" type="button" data-drive-category="sauvegardes">Sauvegardes</button>
+          <button class="hidden-drive-tab" type="button" data-drive-category="autres">Autres</button>
         </div>
+        <div id="hiddenDriveStatus" class="hint">Clique sur Actualiser pour charger la liste.</div>
+        <div id="hiddenDriveList" class="hidden-drive-list"></div>
       </div>
-
-      <div class="help-page" id="devis">
-        <h1>Devis & Factures</h1>
-
-        <div class="help-block">
-          <h3>Créer un document</h3>
-
-          <ol>
-            <li>Créer un nouveau devis ou une facture.</li>
-            <li>Encoder le nom du client.</li>
-            <li>Vérifier le numéro du document.</li>
-            <li>Ajouter les lignes et montants.</li>
-            <li>Cliquer sur la disquette 💾 pour sauvegarder.</li>
-          </ol>
-
-          <h3>Liaison automatique avec le suivi client</h3>
-
-          <p>
-            Si un nom client et un numéro de document sont présents,
-            BastCompta peut automatiquement créer ou relier des éléments
-            dans le module Suivi client.
-          </p>
-
-          <h3>PDF</h3>
-
-          <p>
-            Les documents peuvent être exportés ou imprimés en PDF
-            pour envoi au client.
-          </p>
-        </div>
-      </div>
-
-      <div class="help-page" id="compta">
-        <h1>Comptabilité</h1>
-
-        <div class="help-block">
-          <h3>Encodage</h3>
-
-          <p>
-            Encodez régulièrement vos achats et ventes afin de conserver
-            une comptabilité claire et à jour.
-          </p>
-
-          <h3>TVA</h3>
-
-          <p>
-            Vérifiez toujours :
-          </p>
-
-          <ul>
-            <li>HTVA</li>
-            <li>TVA</li>
-            <li>TVAC</li>
-          </ul>
-
-          <p>
-            BastCompta aide à préparer les montants utiles à la déclaration TVA.
-          </p>
-        </div>
-      </div>
-
-      <div class="help-page" id="clients">
-        <h1>Suivi client</h1>
-
-        <div class="help-block">
-          <h3>Centralisation</h3>
-
-          <p>
-            Le module Suivi client permet de centraliser :
-          </p>
-
-          <ul>
-            <li>clients ;</li>
-            <li>documents ;</li>
-            <li>historique ;</li>
-            <li>prestations ;</li>
-            <li>marges ;</li>
-            <li>coûts.</li>
-          </ul>
-
-          <p>
-            Les documents créés dans Devis & Factures peuvent être automatiquement reliés.
-          </p>
-        </div>
-      </div>
-
-      <div class="help-page" id="impots">
-        <h1>Impôts IPP</h1>
-
-        <div class="help-block">
-          <p>
-            Le module IPP aide à préparer les informations nécessaires
-            avant déclaration officielle.
-          </p>
-
-          <p>
-            Les montants et codes doivent toujours être vérifiés
-            avant transmission.
-          </p>
-        </div>
-      </div>
-
-      <div class="help-page" id="drive">
-        <h1>Google Drive</h1>
-
-        <div class="help-block">
-          <h3>Pourquoi BastCompta demande un accès Drive ?</h3>
-
-          <p>
-            BastCompta utilise Google Drive afin de :
-          </p>
-
-          <ul>
-            <li>créer des sauvegardes ;</li>
-            <li>restaurer des données ;</li>
-            <li>synchroniser certains éléments ;</li>
-            <li>conserver des fichiers dans appDataFolder.</li>
-          </ul>
-
-          <h3>Que faut-il accepter ?</h3>
-
-          <p>
-            Lors de la connexion Google, acceptez les autorisations demandées
-            pour permettre le fonctionnement des sauvegardes et synchronisations.
-          </p>
-
-          <h3>Important</h3>
-
-          <p>
-            Si l’accès Drive est refusé, certaines fonctions cloud
-            ne fonctionneront pas.
-          </p>
-        </div>
-      </div>
-
-      <div class="help-page" id="sauvegardes">
-        <h1>Sauvegardes</h1>
-
-        <div class="help-block">
-          <h3>Créer une sauvegarde</h3>
-
-          <p>
-            Utilisez le bouton 💾 ainsi que les options ZIP
-            dans les paramètres pour conserver une copie complète des données.
-          </p>
-
-          <h3>Conseil</h3>
-
-          <p>
-            Effectuez toujours une sauvegarde avant une restauration
-            ou une grosse modification.
-          </p>
-        </div>
-      </div>
-
-      <div class="help-page" id="problemes">
-        <h1>Résolution des problèmes</h1>
-
-        <div class="help-block">
-          <h3>Google Drive ne fonctionne pas</h3>
-          <p>Reconnectez votre compte Google et acceptez les autorisations demandées.</p>
-
-          <h3>Un document n’apparaît pas</h3>
-          <p>Vérifiez que le document a bien été sauvegardé via la disquette 💾.</p>
-
-          <h3>Une donnée semble manquante</h3>
-          <p>Essayez une restauration depuis une sauvegarde ZIP récente.</p>
-        </div>
-      </div>
-
     </div>
   </div>
-</div>
 
-<script src="js/index.js"></script>
+  <div id="helpModal" class="help-modal" aria-hidden="true">
+    <div class="help-modal-card" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle">
+      <div class="help-modal-head">
+        <div>
+          <h3 id="helpModalTitle">Présentation & FAQ BastCompta</h3>
+          <p>Mini-guide intégré pour comprendre le rôle de l’outil et utiliser chaque module correctement.</p>
+        </div>
+        <button id="closeHelpBtn" type="button">Fermer</button>
+      </div>
+
+      <div class="help-modal-body">
+        <div class="help-tabs" id="helpTabs" aria-label="Rubriques d’aide BastCompta">
+          <button class="help-tab active" type="button" data-help-tab="presentation">Présentation</button>
+          <button class="help-tab" type="button" data-help-tab="general">FAQ générale</button>
+          <button class="help-tab" type="button" data-help-tab="devis">Devis & Factures</button>
+          <button class="help-tab" type="button" data-help-tab="compta">Comptabilité</button>
+          <button class="help-tab" type="button" data-help-tab="client">Suivi client</button>
+          <button class="help-tab" type="button" data-help-tab="impots">Impôts IPP</button>
+          <button class="help-tab" type="button" data-help-tab="drive">Drive & Sauvegardes</button>
+        </div>
+
+        <div class="help-content">
+          <section class="help-panel active" data-help-panel="presentation">
+            <h4>Qu’est-ce que BastCompta ?</h4>
+            <p>BastCompta est un outil d’organisation et de suivi administratif pour indépendants et petites structures. Il aide à regrouper les devis, factures, clients, documents, chiffres utiles et éléments de préparation comptable dans un seul espace.</p>
+            <div class="help-note"><strong>Important :</strong> BastCompta n’est pas vendu comme un logiciel comptable officiel. Il sert à organiser, suivre, préparer et contrôler les informations avant validation par l’utilisateur, son comptable ou les plateformes officielles.</div>
+            <div class="mini-tuto">
+              <h5>Mini-tuto : bien démarrer</h5>
+              <ol>
+                <li>Créez ou connectez votre compte.</li>
+                <li>Commencez par le module <strong>Devis & Factures</strong> pour encoder vos clients et documents commerciaux.</li>
+                <li>Utilisez <strong>Comptabilité</strong> pour suivre les ventes, achats, frais, TVA et résultats estimés.</li>
+                <li>Ajoutez vos clients importants dans <strong>Suivi client</strong> pour regrouper documents, coûts, notes et marges.</li>
+                <li>Faites régulièrement une sauvegarde ZIP ou connectez Google Drive pour sécuriser vos données.</li>
+              </ol>
+            </div>
+          </section>
+
+          <section class="help-panel" data-help-panel="general">
+            <h4>FAQ générale</h4>
+            <div class="qa"><h5>BastCompta remplace-t-il un comptable ?</h5><p>Non. L’outil aide à préparer et organiser les données. Les déclarations, choix fiscaux et cas particuliers doivent rester vérifiés par l’utilisateur ou un professionnel.</p></div>
+            <div class="qa"><h5>À qui s’adresse l’outil ?</h5><p>Aux indépendants, activités complémentaires, artisans et petites structures qui veulent une gestion simple sans logiciel lourd.</p></div>
+            <div class="qa"><h5>Que faut-il contrôler régulièrement ?</h5><p>Les factures encodées, les taux TVA, les montants HTVA/TVA/TVAC, les périodes, les factures d’achat et les sauvegardes.</p></div>
+            <div class="mini-tuto">
+              <h5>Mini-tuto : contrôle mensuel rapide</h5>
+              <ol>
+                <li>Vérifiez que toutes les ventes du mois sont encodées.</li>
+                <li>Ajoutez les achats et frais professionnels.</li>
+                <li>Comparez les totaux avec vos factures PDF, extraits ou notes.</li>
+                <li>Exportez ou imprimez les informations utiles avant de transmettre au comptable.</li>
+              </ol>
+            </div>
+          </section>
+
+          <section class="help-panel" data-help-panel="devis">
+            <h4>Devis & Factures</h4>
+            <p>Ce module sert à créer des devis, factures, rappels, documents commerciaux et à garder une trace claire des clients.</p>
+            <div class="mini-tuto"><h5>Mini-tuto : créer un devis</h5><ol><li>Ouvrez l’onglet <strong>Devis & Facture</strong>.</li><li>Complétez les informations du client.</li><li>Ajoutez vos lignes : description, quantité, prix unitaire, TVA et remise si nécessaire.</li><li>Vérifiez les totaux.</li><li>Imprimez ou exportez le document en PDF.</li></ol></div>
+            <div class="mini-tuto"><h5>Mini-tuto : passer d’un devis à une facture</h5><ol><li>Ouvrez le devis concerné.</li><li>Contrôlez les informations client et les lignes.</li><li>Générez la facture depuis le document existant si la fonction est disponible.</li><li>Vérifiez la numérotation et la date.</li><li>Enregistrez puis imprimez ou exportez.</li></ol></div>
+            <div class="qa"><h5>Conseil</h5><p>Avant d’envoyer un document, contrôlez toujours l’adresse, la TVA, le total TVAC, les conditions et la communication de paiement.</p></div>
+          </section>
+
+          <section class="help-panel" data-help-panel="compta">
+            <h4>Comptabilité</h4>
+            <p>Ce module donne une vue de gestion : ventes, achats, frais, TVA nette, résultat estimé et éléments utiles aux déclarations.</p>
+            <div class="mini-tuto"><h5>Mini-tuto : encoder une vente</h5><ol><li>Allez dans le module <strong>Comptabilité</strong>.</li><li>Ajoutez la facture de vente avec la bonne date et le bon numéro.</li><li>Encodez le montant HTVA, le taux TVA et vérifiez le TVAC.</li><li>Classez-la dans la bonne période.</li><li>Comparez avec le PDF original.</li></ol></div>
+            <div class="mini-tuto"><h5>Mini-tuto : préparer une période TVA</h5><ol><li>Vérifiez que toutes les ventes de la période sont présentes.</li><li>Vérifiez les achats et frais déductibles.</li><li>Contrôlez les taux TVA et les montants.</li><li>Consultez le résumé TVA.</li><li>Utilisez ces chiffres comme aide avant encodage ou vérification sur Intervat.</li></ol></div>
+            <div class="qa"><h5>Attention</h5><p>Les frais mixtes, véhicules, notes de crédit, achats intracommunautaires ou cas particuliers doivent être vérifiés séparément.</p></div>
+          </section>
+
+          <section class="help-panel" data-help-panel="client">
+            <h4>Suivi client</h4>
+            <p>Le suivi client regroupe les informations importantes : fiche client, documents, coûts, marge, notes, tâches et historique.</p>
+            <div class="mini-tuto"><h5>Mini-tuto : créer une fiche client</h5><ol><li>Ouvrez <strong>Suivi client</strong>.</li><li>Cliquez sur <strong>Nouveau client CRM</strong>.</li><li>Complétez le nom, la référence, l’adresse et les remarques.</li><li>Enregistrez la fiche.</li><li>Ajoutez ensuite les documents, notes ou coûts liés au client.</li></ol></div>
+            <div class="mini-tuto"><h5>Mini-tuto : suivre la marge d’un client</h5><ol><li>Vérifiez les factures associées au client.</li><li>Ajoutez les coûts réels : fournitures, achats ou coûts manuels.</li><li>Consultez la marge globale.</li><li>Comparez avec votre estimation de départ.</li></ol></div>
+          </section>
+
+          <section class="help-panel" data-help-panel="impots">
+            <h4>Impôts IPP</h4>
+            <p>Ce module aide à regrouper les informations utiles pour préparer une déclaration IPP belge d’indépendant personne physique.</p>
+            <div class="mini-tuto"><h5>Mini-tuto : utiliser le module IPP</h5><ol><li>Actualisez les chiffres depuis les données existantes.</li><li>Vérifiez les revenus, frais, cotisations et éléments proposés.</li><li>Lisez les alertes ou contrôles affichés.</li><li>Imprimez ou exportez le résumé si nécessaire.</li><li>Vérifiez toujours les codes et montants avec Tax-on-web, la brochure officielle ou votre comptable.</li></ol></div>
+            <div class="qa"><h5>Les codes fiscaux sont-ils définitifs ?</h5><p>Non. Ils sont une aide de préparation. Les codes fiscaux peuvent changer et doivent être vérifiés chaque année.</p></div>
+          </section>
+
+          <section class="help-panel" data-help-panel="drive">
+            <h4>Google Drive & Sauvegardes</h4>
+            <p>BastCompta peut utiliser des sauvegardes locales et Google Drive AppData pour conserver ou restaurer les données.</p>
+            <div class="mini-tuto"><h5>Mini-tuto : faire une sauvegarde propre</h5><ol><li>Ouvrez le menu ⚙️.</li><li>Cliquez sur <strong>Créer une sauvegarde ZIP</strong>.</li><li>Conservez le fichier ZIP dans un endroit sûr.</li><li>Faites une sauvegarde avant toute grosse modification ou restauration.</li></ol></div>
+            <div class="mini-tuto"><h5>Mini-tuto : utiliser Google Drive</h5><ol><li>Ouvrez le menu ⚙️.</li><li>Cliquez sur <strong>Connecter Google Drive</strong>.</li><li>Autorisez l’accès demandé.</li><li>Utilisez les options d’export ou d’import Drive selon le module.</li><li>Consultez <strong>Fichiers Drive cachés</strong> pour vérifier les fichiers stockés dans appDataFolder.</li></ol></div>
+            <div class="qa"><h5>Différence entre ZIP et Drive</h5><p>Le ZIP est une sauvegarde complète que vous gardez vous-même. Drive sert plutôt à stocker ou synchroniser certaines données dans l’espace caché de l’application.</p></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="subscriptionModal" class="subscription-modal" aria-hidden="true">
+    <div class="subscription-modal-card">
+      <h3 id="subscriptionModalTitle">Abonnement BastCompta</h3>
+      <p id="subscriptionModalText"></p>
+
+      <div class="subscription-extra">
+        Activation dans les 24h.<br><br>
+        Pour une activation plus rapide, envoyez une preuve de paiement à :
+        <strong>bastcompta@outlook.be</strong>
+      </div>
+
+      <div class="subscription-plans">
+        <div><strong>Mensuel</strong><span>4,99 €</span></div>
+        <div><strong>Trimestriel</strong><span>12,99 €</span></div>
+        <div><strong>Annuel</strong><span>49,99 €</span></div>
+      </div>
+
+      <div class="subscription-payment">
+        <p><strong>Compte bancaire :</strong> BE62 0013 1811 9761</p>
+        <p><strong>Communication :</strong> <span id="subscriptionCommunication">bastcompta</span></p>
+      </div>
+
+      <button id="closeSubscriptionModalBtn" class="primary" type="button">J’ai compris</button>
+    </div>
+  </div>
+
+  <div id="backupOverlay" class="backup-overlay" aria-live="polite" aria-busy="true">
+    <div class="backup-overlay-card">
+      <div class="backup-spinner"></div>
+      <h3 id="backupOverlayTitle">Sauvegarde en cours</h3>
+      <p id="backupOverlayText">Veuillez patienter…</p>
+    </div>
+  </div>
+
+  <script type="module" src="js/index.js"></script>
 </body>
+
 </html>
