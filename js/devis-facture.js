@@ -344,9 +344,7 @@ async function saveData(showAlert = true) {
       }
     }
 
-    if (showAlert) {
-      render();
-    }
+    render();
 
   } finally {
     if (btn) {
