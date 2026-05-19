@@ -1758,7 +1758,7 @@ async function createUserDocument(user) {
 
   const now = new Date();
   const trialEnd = new Date(now);
-  trialEnd.setDate(now.getDate() + 14);
+  trialEnd.setDate(now.getDate() + 90);
 
   const isOwner = (user.email || '').toLowerCase() === 'seb-n@hotmail.com';
 
@@ -1868,7 +1868,7 @@ function subscriptionMessageFromResult(result) {
   const email = result?.data?.email || auth.currentUser?.email || '';
 
   if (result?.reason === 'trial_expired') {
-    return `Votre période d’essai gratuite de 14 jours est terminée.
+    return `Votre période d’essai gratuite de 3 mois est terminée.
 
 Pour continuer à utiliser BastCompta, merci d’effectuer un virement bancaire :
 
